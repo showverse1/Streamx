@@ -13,13 +13,20 @@ import {
   AlertTriangle,
   X,
   Search as SearchIcon,
-  Check
+  Check,
+  LogIn,
+  LogOut,
+  Mail,
+  User as UserIcon
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { WatchHistoryItem } from '../types';
 
 export const Profile: React.FC = () => {
   const {
+    user,
+    logout,
+    setIsAuthModalOpen,
     watchHistory,
     recentSearches,
     clearAllHistory,
@@ -171,38 +178,85 @@ export const Profile: React.FC = () => {
         </div>
       )}
 
-      {/* Profile Card Header */}
+      {/* Profile Card Header with Email & Password Login */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-rose-950/40 p-5 border border-slate-800 shadow-xl">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-rose-600 via-red-500 to-amber-500 p-0.5 shadow-lg shadow-rose-600/30">
-              <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center font-black text-rose-500 text-xl">
-                SX
+        {user ? (
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="relative shrink-0">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-rose-600 via-red-500 to-amber-500 p-0.5 shadow-lg shadow-rose-600/30">
+                  <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center font-black text-rose-500 text-lg">
+                    {user.name ? user.name.slice(0, 2).toUpperCase() : 'SX'}
+                  </div>
+                </div>
+                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-900" />
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h2 className="font-extrabold text-white text-sm truncate">
+                    {user.name}
+                  </h2>
+                  <ShieldCheck className="w-4 h-4 text-rose-500 shrink-0" />
+                </div>
+                <p className="text-xs text-slate-300 font-mono truncate flex items-center gap-1 mt-0.5">
+                  <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                  <span className="truncate">{user.email}</span>
+                </p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                    VIP Member
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {watchHistory.length} watched
+                  </span>
+                </div>
               </div>
             </div>
-            <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-500 border-2 border-slate-900" />
-          </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h2 className="font-extrabold text-white text-base truncate">
-                StreamX Member
-              </h2>
-              <ShieldCheck className="w-4 h-4 text-rose-500 shrink-0" />
-            </div>
-            <p className="text-xs text-slate-400 font-mono mt-0.5">
-              PWA Mode: Standalone Ready
-            </p>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                VIP Premium
-              </span>
-              <span className="text-[10px] text-slate-400">
-                {watchHistory.length} Episodes Tracked
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                haptic(40);
+                logout();
+              }}
+              className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-slate-700/60 transition-all shrink-0 active:scale-95"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+                  <UserIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="font-extrabold text-white text-sm">
+                    Guest Account
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Sign in to save your cloud watch history
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                haptic(40);
+                setIsAuthModalOpen(true);
+              }}
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition-all active:scale-98 flex items-center justify-center gap-2"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Login with Email & Password</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* WATCH HISTORY SECTION MAPPED FROM LOCALSTORAGE */}

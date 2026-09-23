@@ -56,4 +56,12 @@ export interface DownloadItem {
   videoUrl: string;
 }
 
+export interface UserProfile {
+  email: string;
+  name: string;
+  isLoggedIn: boolean;
+  avatarUrl?: string;
+  joinedDate: number;
+}
+
 export type TabType = 'home' | 'search' | 'downloads' | 'me';

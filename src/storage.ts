@@ -1,10 +1,36 @@
-import { WatchHistoryItem, DownloadItem } from './types';
+import { WatchHistoryItem, DownloadItem, UserProfile } from './types';
 
 const WATCH_HISTORY_KEY = 'streamx_watch_history';
 const DOWNLOADS_KEY = 'streamx_downloads';
 const RECENT_SEARCHES_KEY = 'streamx_recent_searches';
+const USER_KEY = 'streamx_user_profile';
 
 export const storage = {
+  getUser(): UserProfile | null {
+    try {
+      const raw = localStorage.getItem(USER_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  },
+
+  saveUser(user: UserProfile): void {
+    try {
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+    } catch (e) {
+      console.error('Failed to save user in localStorage', e);
+    }
+  },
+
+  clearUser(): void {
+    try {
+      localStorage.removeItem(USER_KEY);
+    } catch (e) {
+      console.error('Failed to clear user from localStorage', e);
+    }
+  },
   getRecentSearches(): string[] {
     try {
       const raw = localStorage.getItem(RECENT_SEARCHES_KEY);

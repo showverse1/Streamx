@@ -20,6 +20,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     stopPlayback,
     backExitWarning,
     setBackExitWarning,
+    user,
+    setIsAuthModalOpen,
     haptic
   } = useAppStore();
 
@@ -120,6 +122,37 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         <div className="flex items-center gap-2">
+          {user ? (
+            <button
+              type="button"
+              onClick={() => {
+                haptic(30);
+                setCurrentTab('me');
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-xs font-semibold text-white hover:border-rose-500/50 transition active:scale-95"
+              title={`Logged in as ${user.email}`}
+            >
+              <span className="w-5 h-5 rounded-full bg-rose-600 text-[10px] font-bold flex items-center justify-center text-white">
+                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+              </span>
+              <span className="max-w-[70px] truncate text-[11px] font-medium hidden sm:inline">
+                {user.name}
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                haptic(35);
+                setIsAuthModalOpen(true);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-xs font-bold text-rose-300 transition active:scale-95"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Login</span>
+            </button>
+          )}
+
           <PWAInstallButton />
           {isOnline ? (
             <div className="flex items-center gap-1.5 bg-slate-800/70 border border-slate-700/60 rounded-full px-2.5 py-1 text-xs text-slate-300">

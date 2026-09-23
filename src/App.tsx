@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { VideoPlayer } from './components/VideoPlayer';
+import { AuthModal } from './components/AuthModal';
 import { Home } from './pages/Home';
 import { SeriesDetail } from './pages/SeriesDetail';
 import { Search } from './pages/Search';
@@ -47,8 +48,11 @@ export default function App() {
         {renderActiveView()}
       </Layout>
 
-      {/* Fullscreen Video Player with Custom Touch Gestures & Landscape Lock */}
-      {activePlayback && <VideoPlayer />}
+      {/* Email & Password Authentication Modal */}
+      <AuthModal />
+
+      {/* Fullscreen Video Player with Custom Touch Gestures & Landscape Lock (for Home/Downloads; SeriesDetail uses inline YouTube player) */}
+      {activePlayback && !selectedSeriesId && <VideoPlayer />}
     </>
   );
 }
