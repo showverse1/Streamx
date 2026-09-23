@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { Home, Search, Download, User, AlertCircle } from 'lucide-react';
+import { Home, Search, Download, User, AlertCircle, WifiOff } from 'lucide-react';
 import { useAppStore } from '../store';
 import { TabType } from '../types';
+import { OfflineToast } from './OfflineToast';
+import { PWAInstallButton } from './PWAInstallButton';
+import { useOnlineStatus } from './useOnlineStatus';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -22,6 +25,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const lastBackPressRef = useRef<number>(0);
   const exitTimeoutRef = useRef<number | null>(null);
+  const { isOnline } = useOnlineStatus();
 
   // Browser History Interception
   useEffect(() => {
@@ -116,12 +120,23 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-slate-800/70 border border-slate-700/60 rounded-full px-2.5 py-1 text-xs text-slate-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="font-medium text-[11px]">4K ULTRA</span>
-          </div>
+          <PWAInstallButton />
+          {isOnline ? (
+            <div className="flex items-center gap-1.5 bg-slate-800/70 border border-slate-700/60 rounded-full px-2.5 py-1 text-xs text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="font-medium text-[11px]">4K ULTRA</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 bg-amber-950/80 border border-amber-500/50 rounded-full px-2.5 py-1 text-xs text-amber-300 shadow-sm animate-pulse">
+              <WifiOff className="w-3 h-3 text-amber-400" />
+              <span className="font-semibold text-[10px] tracking-wide">OFFLINE</span>
+            </div>
+          )}
         </div>
       </header>
+
+      {/* Offline Toast Notification */}
+      <OfflineToast />
 
       {/* Main Page Content */}
       <main className="flex-1 pb-24">

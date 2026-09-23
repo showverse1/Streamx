@@ -2,8 +2,60 @@ import { WatchHistoryItem, DownloadItem } from './types';
 
 const WATCH_HISTORY_KEY = 'streamx_watch_history';
 const DOWNLOADS_KEY = 'streamx_downloads';
+const RECENT_SEARCHES_KEY = 'streamx_recent_searches';
 
 export const storage = {
+  getRecentSearches(): string[] {
+    try {
+      const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+      }
+      return [];
+    } catch (e) {
+      console.error('Failed to read recent searches from localStorage', e);
+      return [];
+    }
+  },
+
+  saveRecentSearch(query: string): string[] {
+    try {
+      const trimmed = query.trim();
+      if (!trimmed) return storage.getRecentSearches();
+
+      const existing = storage.getRecentSearches();
+      // Case-insensitive deduplication
+      const filtered = existing.filter((item) => item.toLowerCase() !== trimmed.toLowerCase());
+      const updated = [trimmed, ...filtered].slice(0, 10);
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+      return updated;
+    } catch (e) {
+      console.error('Failed to save recent search', e);
+      return [];
+    }
+  },
+
+  removeRecentSearch(query: string): string[] {
+    try {
+      const existing = storage.getRecentSearches();
+      const updated = existing.filter((item) => item.toLowerCase() !== query.toLowerCase());
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+      return updated;
+    } catch (e) {
+      console.error('Failed to remove recent search', e);
+      return [];
+    }
+  },
+
+  clearRecentSearches(): void {
+    try {
+      localStorage.removeItem(RECENT_SEARCHES_KEY);
+    } catch (e) {
+      console.error('Failed to clear recent searches', e);
+    }
+  },
   getWatchHistory(): WatchHistoryItem[] {
     try {
       const raw = localStorage.getItem(WATCH_HISTORY_KEY);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   History,
   Trash2,
@@ -9,7 +9,11 @@ import {
   CheckCircle,
   Film,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle,
+  X,
+  Search as SearchIcon,
+  Check
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { WatchHistoryItem } from '../types';
@@ -17,12 +21,16 @@ import { WatchHistoryItem } from '../types';
 export const Profile: React.FC = () => {
   const {
     watchHistory,
-    clearWatchHistory,
+    recentSearches,
+    clearAllHistory,
     startPlayback,
     series,
     setSelectedSeriesId,
     haptic
   } = useAppStore();
+
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const formatTimestamp = (ts: number) => {
     const diff = Date.now() - ts;
@@ -50,8 +58,119 @@ export const Profile: React.FC = () => {
     setSelectedSeriesId(seriesId);
   };
 
+  const handleConfirmClear = () => {
+    clearAllHistory();
+    setIsConfirmModalOpen(false);
+    setToastMessage('Watch history and search history wiped from localStorage.');
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
   return (
-    <div className="p-4 space-y-6 max-w-md mx-auto">
+    <div className="p-4 space-y-6 max-w-md mx-auto relative">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-sm transition-all duration-300 animate-in fade-in slide-in-from-top-4 pointer-events-none">
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-slate-900/95 border border-rose-500/60 text-white text-xs font-semibold shadow-2xl backdrop-blur-xl">
+            <div className="p-1 rounded-lg bg-rose-500/20 text-rose-400">
+              <Trash2 className="w-3.5 h-3.5" />
+            </div>
+            <span className="flex-1">{toastMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {isConfirmModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => setIsConfirmModalOpen(false)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-800 p-5 shadow-2xl shadow-black text-slate-100 space-y-4 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Clear All History?</h3>
+                  <p className="text-[11px] text-slate-400">LocalStorage Wipe Confirmation</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  haptic(25);
+                  setIsConfirmModalOpen(false);
+                }}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                aria-label="Close modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Description */}
+            <p className="text-xs text-slate-300 leading-relaxed">
+              This action will permanently wipe all watch records and recent search queries stored in this browser’s <strong>localStorage</strong>:
+            </p>
+
+            {/* Itemized breakdown */}
+            <div className="rounded-2xl bg-slate-950/80 border border-slate-800/80 p-3 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <History className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Watch History</span>
+                </div>
+                <span className="font-mono font-bold text-white bg-slate-800 px-2 py-0.5 rounded-full text-[11px]">
+                  {watchHistory.length} {watchHistory.length === 1 ? 'record' : 'records'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <SearchIcon className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Recent Searches</span>
+                </div>
+                <span className="font-mono font-bold text-white bg-slate-800 px-2 py-0.5 rounded-full text-[11px]">
+                  {recentSearches.length} {recentSearches.length === 1 ? 'query' : 'queries'}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 italic">
+              Note: Downloaded offline episodes and playback settings will remain unaffected.
+            </p>
+
+            {/* Modal Actions */}
+            <div className="grid grid-cols-2 gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  haptic(25);
+                  setIsConfirmModalOpen(false);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition active:scale-95"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClear}
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear All</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Profile Card Header */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-rose-950/40 p-5 border border-slate-800 shadow-xl">
         <div className="flex items-center gap-4">
@@ -96,15 +215,18 @@ export const Profile: React.FC = () => {
             </h3>
           </div>
 
-          {watchHistory.length > 0 && (
+          {(watchHistory.length > 0 || recentSearches.length > 0) && (
             <button
               type="button"
-              onClick={clearWatchHistory}
-              className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-400 transition-colors p-1"
-              title="Clear LocalStorage History"
+              onClick={() => {
+                haptic(40);
+                setIsConfirmModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 text-xs font-semibold transition active:scale-95"
+              title="Clear All Watch and Search History"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear</span>
+              <span>Clear All History</span>
             </button>
           )}
         </div>
@@ -180,6 +302,47 @@ export const Profile: React.FC = () => {
         )}
       </div>
 
+      {/* Data & LocalStorage Management Card */}
+      <div className="rounded-2xl bg-slate-900/60 border border-slate-800/80 p-4 space-y-3.5 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+            <span>Data & Privacy (LocalStorage)</span>
+          </h3>
+          <span className="text-[10px] text-slate-500 font-mono">
+            {watchHistory.length + recentSearches.length} items stored
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between">
+            <span className="text-xs text-slate-400">Watch Entries</span>
+            <span className="font-mono text-xs font-bold text-white">{watchHistory.length}</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center justify-between">
+            <span className="text-xs text-slate-400">Search Queries</span>
+            <span className="font-mono text-xs font-bold text-white">{recentSearches.length}</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            haptic(40);
+            setIsConfirmModalOpen(true);
+          }}
+          disabled={watchHistory.length === 0 && recentSearches.length === 0}
+          className={`w-full py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold transition active:scale-98 ${
+            watchHistory.length > 0 || recentSearches.length > 0
+              ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 hover:border-rose-500/50 shadow-sm'
+              : 'bg-slate-800/40 text-slate-500 border border-slate-800 cursor-not-allowed'
+          }`}
+        >
+          <Trash2 className="w-4 h-4" />
+          <span>Clear All History</span>
+        </button>
+      </div>
+
       {/* Mobile Features & Device Info Card */}
       <div className="rounded-2xl bg-slate-900/60 border border-slate-800/80 p-4 space-y-3">
         <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400">
@@ -201,6 +364,14 @@ export const Profile: React.FC = () => {
               <span>Hardware Gesture Simulation</span>
             </div>
             <span className="font-mono text-slate-400 text-[11px]">Volume & Brightness</span>
+          </div>
+
+          <div className="flex items-center justify-between py-1.5 border-b border-slate-800/50">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-400" />
+              <span>ServiceWorker Static Cache</span>
+            </div>
+            <span className="font-mono text-emerald-400 text-[11px]">Active (PWA)</span>
           </div>
 
           <div className="flex items-center justify-between py-1.5">

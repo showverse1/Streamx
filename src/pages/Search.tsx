@@ -1,10 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { Search as SearchIcon, X, Film, Play, Star } from 'lucide-react';
+import { Search as SearchIcon, X, Film, Play, Star, History, Clock, Trash2, ArrowUpRight } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Series } from '../types';
 
 export const Search: React.FC = () => {
-  const { series, setSelectedSeriesId, startPlayback, haptic } = useAppStore();
+  const {
+    series,
+    setSelectedSeriesId,
+    startPlayback,
+    haptic,
+    recentSearches,
+    addRecentSearch,
+    removeRecentSearch,
+    clearRecentSearches,
+  } = useAppStore();
   const [query, setQuery] = useState('');
   const [activeQuickFilter, setActiveQuickFilter] = useState<string>('All');
 
@@ -38,13 +47,37 @@ export const Search: React.FC = () => {
     return filtered;
   }, [series, query, activeQuickFilter]);
 
+  const handleExecuteSearch = (searchQuery: string) => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
+    haptic(35);
+    setQuery(trimmed);
+    addRecentSearch(trimmed);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim()) {
+      handleExecuteSearch(query);
+      if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }
+  };
+
   const handleSelectSeries = (s: Series) => {
+    if (query.trim()) {
+      addRecentSearch(query.trim());
+    }
     haptic(40);
     setSelectedSeriesId(s.id);
   };
 
   const handleQuickPlay = (e: React.MouseEvent, s: Series) => {
     e.stopPropagation();
+    if (query.trim()) {
+      addRecentSearch(query.trim());
+    }
     haptic(50);
     const s1 = s.seasons[0];
     if (s1 && s1.episodes.length > 0) {
@@ -57,28 +90,37 @@ export const Search: React.FC = () => {
   return (
     <div className="p-4 space-y-4 max-w-md mx-auto">
       {/* Search Input Box */}
-      <div className="relative">
+      <form onSubmit={handleSubmit} className="relative">
         <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search anime, K-drama, titles, actors..."
-          className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-10 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition-colors shadow-inner"
+          className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-20 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition-colors shadow-inner"
         />
-        {query && (
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                haptic(25);
+                setQuery('');
+              }}
+              className="p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white transition active:scale-90"
+              aria-label="Clear query"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
-            type="button"
-            onClick={() => {
-              haptic(25);
-              setQuery('');
-            }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-800 text-slate-400 hover:text-white"
+            type="submit"
+            className="p-1 px-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow transition active:scale-95"
           >
-            <X className="w-3.5 h-3.5" />
+            Search
           </button>
-        )}
-      </div>
+        </div>
+      </form>
 
       {/* Quick Tag Pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
@@ -103,6 +145,67 @@ export const Search: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Recent Searches Section */}
+      {recentSearches.length > 0 && (
+        <div className="rounded-2xl bg-slate-900/60 border border-slate-800/80 p-3 space-y-2.5 backdrop-blur-sm shadow-sm">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1.5 font-bold text-slate-300">
+              <History className="w-3.5 h-3.5 text-rose-500" />
+              <span>Recent Searches</span>
+              <span className="px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400 font-medium">
+                {recentSearches.length}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                clearRecentSearches();
+              }}
+              className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-rose-400 transition"
+              title="Clear all recent searches"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>Clear All</span>
+            </button>
+          </div>
+
+          {/* Recent Searches Pill Flow with Quick Re-execution & Delete */}
+          <div className="flex flex-wrap gap-2">
+            {recentSearches.map((item) => {
+              const isCurrentQuery = query.toLowerCase() === item.toLowerCase();
+              return (
+                <div
+                  key={item}
+                  onClick={() => handleExecuteSearch(item)}
+                  className={`group flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-xs transition-all cursor-pointer select-none active:scale-95 ${
+                    isCurrentQuery
+                      ? 'bg-rose-600/25 text-rose-300 border border-rose-500/50 shadow-sm'
+                      : 'bg-slate-800/90 text-slate-300 hover:bg-slate-800 border border-slate-700/60 hover:text-white'
+                  }`}
+                  title={`Tap to search for "${item}"`}
+                >
+                  <Clock className="w-3 h-3 text-slate-400 group-hover:text-rose-400 shrink-0" />
+                  <span className="font-medium truncate max-w-[140px]">{item}</span>
+                  <ArrowUpRight className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100 text-rose-400 shrink-0" />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeRecentSearch(item);
+                    }}
+                    className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-700/80 transition"
+                    title="Remove this search"
+                    aria-label={`Remove ${item}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Results Header */}
       <div className="flex items-center justify-between text-xs text-slate-400 font-medium pt-1">

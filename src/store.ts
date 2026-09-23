@@ -26,6 +26,7 @@ interface AppState {
   // LocalStorage State
   watchHistory: WatchHistoryItem[];
   downloads: DownloadItem[];
+  recentSearches: string[];
 
   // Actions
   setCurrentTab: (tab: TabType) => void;
@@ -46,6 +47,14 @@ interface AppState {
   addDownload: (series: Series, seasonNum: number, episode: Episode) => void;
   deleteDownload: (id: string) => void;
 
+  // Recent searches actions
+  addRecentSearch: (query: string) => void;
+  removeRecentSearch: (query: string) => void;
+  clearRecentSearches: () => void;
+
+  // Clear all local histories
+  clearAllHistory: () => void;
+
   // Haptic trigger
   haptic: (duration?: number) => void;
 }
@@ -63,6 +72,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   watchHistory: storage.getWatchHistory(),
   downloads: storage.getDownloads(),
+  recentSearches: storage.getRecentSearches(),
 
   setCurrentTab: (tab: TabType) => {
     get().haptic(35);
@@ -165,6 +175,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().haptic(40);
     const updated = storage.removeDownload(id);
     set({ downloads: updated });
+  },
+
+  addRecentSearch: (query: string) => {
+    const updated = storage.saveRecentSearch(query);
+    set({ recentSearches: updated });
+  },
+
+  removeRecentSearch: (query: string) => {
+    get().haptic(30);
+    const updated = storage.removeRecentSearch(query);
+    set({ recentSearches: updated });
+  },
+
+  clearRecentSearches: () => {
+    get().haptic(40);
+    storage.clearRecentSearches();
+    set({ recentSearches: [] });
+  },
+
+  clearAllHistory: () => {
+    get().haptic(70);
+    storage.clearWatchHistory();
+    storage.clearRecentSearches();
+    set({ watchHistory: [], recentSearches: [] });
   },
 
   haptic: (duration = 50) => {
