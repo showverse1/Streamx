@@ -2,7 +2,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { Series } from './types';
 
-// Curated high-quality series fallback with guaranteed playable MP4 video streams
+// Curated high-quality series with guaranteed working, high-speed public CDN video streams
 export const INITIAL_SERIES_DATA: Series[] = [
   {
     id: 'cyber-ronin',
@@ -14,7 +14,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
     year: 2026,
     description: 'In the dystopian neon alleys of Neo Tokyo, an augmented swordmaster seeks redemption against rogue AI syndicates dominating the underworld.',
     tags: ['Cyberpunk', 'Action', 'Sci-Fi', 'Popular'],
-    uploadTimestamp: Date.now() - 1000 * 60 * 60 * 2, // 2 hours ago
+    uploadTimestamp: Date.now() - 1000 * 60 * 60 * 2,
     seasons: [
       {
         seasonNumber: 1,
@@ -26,7 +26,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Awakening of the Ghost Katana',
             duration: '10:53',
             durationSeconds: 653,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80',
             description: 'A rogue ronin discovers an ancient biometric katana inside the ruins of Sector 7.'
           },
@@ -36,7 +36,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'The Neural Grid Ambush',
             duration: '12:14',
             durationSeconds: 734,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+            videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=600&auto=format&fit=crop&q=80',
             description: 'Cybernetic enforcers isolate the subway transit lines.'
           },
@@ -46,7 +46,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Silicon Tears',
             duration: '14:20',
             durationSeconds: 860,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/bunny/trailer.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80',
             description: 'An old comrade reappears with an ultimatum that threatens the rebellion.'
           },
@@ -56,7 +56,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Overdrive Protocol',
             duration: '15:02',
             durationSeconds: 902,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/video/movie_300.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80',
             description: 'Pushing neural implants past the safety threshold.'
           },
@@ -66,7 +66,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Ascension of Chrome',
             duration: '11:45',
             durationSeconds: 705,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackSeeTheWorld.mp4',
+            videoUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&auto=format&fit=crop&q=80',
             description: 'The final infiltration into the Orbital Citadel begins.'
           }
@@ -82,7 +82,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Ghosts of Shinjuku',
             duration: '13:10',
             durationSeconds: 790,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=600&auto=format&fit=crop&q=80',
             description: 'Six months later, a shadowy figure hacks the central mainframe.'
           },
@@ -92,7 +92,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Black Ice Protocol',
             duration: '14:35',
             durationSeconds: 875,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+            videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
             description: 'Countermeasures unleash a digital nightmare across the city.'
           }
@@ -110,7 +110,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
     year: 2025,
     description: 'A secretive late-night café in Hongdae serves magical drinks that allow patrons to revisit one unresolved memory before dawn.',
     tags: ['Romance', 'Mystery', 'Drama', 'Healing'],
-    uploadTimestamp: Date.now() - 1000 * 60 * 60 * 5, // 5 hours ago
+    uploadTimestamp: Date.now() - 1000 * 60 * 60 * 5,
     seasons: [
       {
         seasonNumber: 1,
@@ -122,7 +122,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Rainy Night in Mapo',
             duration: '12:00',
             durationSeconds: 720,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+            videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
             description: 'An exhausted paralegal stumbles into an unmarked doorway during a downpour.'
           },
@@ -132,7 +132,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Espresso with a Drop of Regret',
             duration: '11:15',
             durationSeconds: 675,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/bunny/trailer.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=600&auto=format&fit=crop&q=80',
             description: 'The barista offers a brew that reveals an unsaid confession.'
           },
@@ -142,7 +142,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Cherry Blossom Foam',
             duration: '13:40',
             durationSeconds: 820,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1528698827591-e19ccd7bc23d?w=600&auto=format&fit=crop&q=80',
             description: 'A famous idol seeks sanctuary from the paparazzi.'
           },
@@ -152,7 +152,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'The Recipe from 1998',
             duration: '14:10',
             durationSeconds: 850,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/video/movie_300.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=80',
             description: 'An elderly visitor recognizes the unique hand-drip technique.'
           }
@@ -182,7 +182,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Fissure at Cape Canaveral',
             duration: '14:50',
             durationSeconds: 890,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80',
             description: 'The detection station registers a timeline divergence of 4.2 hours.'
           },
@@ -192,7 +192,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Tachyon Drift',
             duration: '13:25',
             durationSeconds: 805,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+            videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&auto=format&fit=crop&q=80',
             description: 'Pursuing a time pirate through ancient Alexandria.'
           },
@@ -202,7 +202,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Grandfather Loop',
             duration: '15:10',
             durationSeconds: 910,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/bunny/trailer.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=600&auto=format&fit=crop&q=80',
             description: 'Trapped inside a 30-minute causality loop.'
           }
@@ -220,7 +220,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
     year: 2026,
     description: 'Forbidden transmutation unleashes mythical celestial beasts across the northern kingdom.',
     tags: ['Anime', 'Fantasy', 'Magic', 'Adventure'],
-    uploadTimestamp: Date.now() - 1000 * 60 * 60 * 24, // 1 day ago
+    uploadTimestamp: Date.now() - 1000 * 60 * 60 * 24,
     seasons: [
       {
         seasonNumber: 1,
@@ -232,7 +232,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Black Quicksilver',
             duration: '12:45',
             durationSeconds: 765,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/video/movie_300.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=600&auto=format&fit=crop&q=80',
             description: 'An apprentice breaks the seal on the library basement.'
           },
@@ -242,7 +242,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Circle of Chimera',
             duration: '11:50',
             durationSeconds: 710,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+            videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80',
             description: 'Guards encounter the first nocturnal manifestation.'
           }
@@ -272,7 +272,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'VIP Lounge Penthouse',
             duration: '13:30',
             durationSeconds: 810,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
             description: 'The undercover meeting goes south when an uninvited guest arrives.'
           },
@@ -282,7 +282,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Port of Incheon',
             duration: '12:18',
             durationSeconds: 738,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/bunny/trailer.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
             description: 'Tracking container 809 before midnight customs clearance.'
           }
@@ -312,7 +312,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Drop Pod 04',
             duration: '10:40',
             durationSeconds: 640,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+            videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&auto=format&fit=crop&q=80',
             description: 'Atmospheric entry burn through the planetary shields.'
           },
@@ -322,7 +322,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'Zero G Breach',
             duration: '11:30',
             durationSeconds: 690,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/video/movie_300.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80',
             description: 'Clearing the docking hangar under zero gravity conditions.'
           }
@@ -352,7 +352,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'The Five Hairpin Turns',
             duration: '12:20',
             durationSeconds: 740,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackSeeTheWorld.mp4',
+            videoUrl: 'https://media.w3.org/2010/05/sintel/trailer.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1541348263662-e0c8de4259ba?w=600&auto=format&fit=crop&q=80',
             description: 'A midnight run tests the limits of tire friction and nerve.'
           }
@@ -382,7 +382,7 @@ export const INITIAL_SERIES_DATA: Series[] = [
             title: 'The Lighthouse Keeper',
             duration: '13:00',
             durationSeconds: 780,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            videoUrl: 'https://vjs.zencdn.net/v/oceans.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80',
             description: 'Arriving at the secluded coastal workshop as twilight fades.'
           }

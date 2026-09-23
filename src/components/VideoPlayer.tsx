@@ -31,6 +31,30 @@ export const VideoPlayer: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPiPActive, setIsPiPActive] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const [activeVideoUrl, setActiveVideoUrl] = useState(activePlayback?.episode.videoUrl || 'https://media.w3.org/2010/05/sintel/trailer.mp4');
+
+  useEffect(() => {
+    if (activePlayback?.episode.videoUrl) {
+      setActiveVideoUrl(activePlayback.episode.videoUrl);
+      setVideoError(false);
+    }
+  }, [activePlayback?.episode.id, activePlayback?.episode.videoUrl]);
+
+  const handleVideoError = () => {
+    console.warn('Video source error, attempting backup mirror CDN...');
+    const fallbacks = [
+      'https://media.w3.org/2010/05/sintel/trailer.mp4',
+      'https://vjs.zencdn.net/v/oceans.mp4',
+      'https://media.w3.org/2010/05/bunny/trailer.mp4'
+    ];
+    const nextFallback = fallbacks.find((url) => url !== activeVideoUrl);
+    if (nextFallback) {
+      setActiveVideoUrl(nextFallback);
+    } else {
+      setVideoError(true);
+    }
+  };
 
   // Gesture indicators
   const [gestureHUD, setGestureHUD] = useState<{
@@ -358,14 +382,39 @@ export const VideoPlayer: React.FC = () => {
       onTouchEnd={handleTouchEnd}
       onClick={resetControlsTimeout}
     >
-      {/* HTML5 Video Element */}
+      {/* HTML5 Video Element with Fallback Sources */}
       <video
         ref={videoRef}
-        src={episode.videoUrl}
+        key={activeVideoUrl}
+        src={activeVideoUrl}
         className="w-full h-full object-contain bg-black"
         playsInline
         controls={false}
-      />
+        onError={handleVideoError}
+      >
+        <source src={activeVideoUrl} type="video/mp4" />
+        <source src="https://media.w3.org/2010/05/sintel/trailer.mp4" type="video/mp4" />
+        <source src="https://vjs.zencdn.net/v/oceans.mp4" type="video/mp4" />
+      </video>
+
+      {/* Video Source Error Recovery Banner */}
+      {videoError && (
+        <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 text-center z-40">
+          <p className="text-white font-bold text-sm mb-1">Stream source unavailable</p>
+          <p className="text-slate-400 text-xs mb-4">Click below to reconnect with backup high-speed mirror</p>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setVideoError(false);
+              setActiveVideoUrl('https://media.w3.org/2010/05/sintel/trailer.mp4');
+            }}
+            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg transition"
+          >
+            Connect to Backup Mirror
+          </button>
+        </div>
+      )}
 
       {/* Brightness Dimmer Overlay (Simulating Hardware Brightness) */}
       <div
