@@ -210,35 +210,37 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       )}
 
-      {/* Top Mobile Status Header */}
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-[#07090e]/95 backdrop-blur-xl border-b border-rose-500/20 safe-pt shadow-lg shadow-black/60 gpu-smooth">
-        <div 
-          onClick={() => {
-            haptic(40);
-            setCurrentTab('home');
-          }}
-          className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition-transform"
-        >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500 via-rose-600 to-amber-500 flex items-center justify-center font-black text-white text-base shadow-[0_0_15px_rgba(244,63,94,0.6)] border border-rose-400/40">
-            X
-          </div>
-          <div>
-            <span className="font-black text-lg tracking-tight bg-gradient-to-r from-white via-rose-100 to-rose-400 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(244,63,94,0.4)]">
-              StreamX
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <PWAInstallButton />
-          {!isOnline && (
-            <div className="flex items-center gap-1.5 bg-amber-950/80 border border-amber-500/50 rounded-full px-2.5 py-1 text-xs text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)] animate-pulse">
-              <WifiOff className="w-3 h-3 text-amber-400" />
-              <span className="font-semibold text-[10px] tracking-wide">OFFLINE</span>
+      {/* Top Mobile Status Header - ONLY on Home screen */}
+      {currentTab === 'home' && !selectedSeriesId && (
+        <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-[#07090e]/95 backdrop-blur-xl border-b border-rose-500/20 safe-pt shadow-lg shadow-black/60 gpu-smooth">
+          <div 
+            onClick={() => {
+              haptic(40);
+              setCurrentTab('home');
+            }}
+            className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition-transform"
+          >
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500 via-rose-600 to-amber-500 flex items-center justify-center font-black text-white text-base shadow-[0_0_15px_rgba(244,63,94,0.6)] border border-rose-400/40">
+              X
             </div>
-          )}
-        </div>
-      </header>
+            <div>
+              <span className="font-black text-lg tracking-tight bg-gradient-to-r from-white via-rose-100 to-rose-400 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(244,63,94,0.4)]">
+                StreamX
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <PWAInstallButton />
+            {!isOnline && (
+              <div className="flex items-center gap-1.5 bg-amber-950/80 border border-amber-500/50 rounded-full px-2.5 py-1 text-xs text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)] animate-pulse">
+                <WifiOff className="w-3 h-3 text-amber-400" />
+                <span className="font-semibold text-[10px] tracking-wide">OFFLINE</span>
+              </div>
+            )}
+          </div>
+        </header>
+      )}
 
       {/* Offline Toast Notification */}
       <OfflineToast />

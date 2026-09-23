@@ -269,6 +269,8 @@ export const SeriesDetail: React.FC = () => {
     }
   };
 
+  const lastTouchEndTimestamp = useRef<number>(0);
+
   // Auto-hide controls timer (Strict 3 seconds of inactivity)
   const startControlsHideTimer = () => {
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
@@ -282,17 +284,26 @@ export const SeriesDetail: React.FC = () => {
     startControlsHideTimer();
   };
 
-  const toggleControls = (e?: React.MouseEvent | React.TouchEvent) => {
-    if (e) e.stopPropagation();
+  const handleScreenTap = () => {
+    haptic(30);
     setShowControls((prev) => {
       const next = !prev;
       if (next) {
         startControlsHideTimer();
       } else if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
+        controlsTimeoutRef.current = null;
       }
       return next;
     });
+  };
+
+  const handleContainerClick = (e: React.MouseEvent) => {
+    // If recently tapped on touch screen, ignore synthetic mouse click to prevent double toggle
+    if (Date.now() - lastTouchEndTimestamp.current < 450) {
+      return;
+    }
+    handleScreenTap();
   };
 
   const handlePlayPause = (e?: React.MouseEvent) => {
@@ -545,11 +556,12 @@ export const SeriesDetail: React.FC = () => {
       }
     } else {
       // SINGLE TAP CANDIDATE
+      lastTouchEndTimestamp.current = now;
       lastTapRef.current = { x, y: touchStartRef.current.y, time: now };
       if (singleTapTimeoutRef.current) clearTimeout(singleTapTimeoutRef.current);
       singleTapTimeoutRef.current = setTimeout(() => {
-        toggleControls();
-      }, 250);
+        handleScreenTap();
+      }, 260);
     }
 
     touchStartRef.current = null;
@@ -603,7 +615,7 @@ export const SeriesDetail: React.FC = () => {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onDoubleClick={handleDoubleClick}
-            onClick={toggleControls}
+            onClick={handleContainerClick}
             className={`relative w-full overflow-hidden group select-none touch-none transition-all duration-300 ${
               isFullscreen
                 ? 'fixed inset-0 z-[100] w-screen h-screen bg-black flex items-center justify-center'
@@ -612,9 +624,8 @@ export const SeriesDetail: React.FC = () => {
           >
             <video
               ref={videoRef}
-              key={activeVideoUrl}
+              key={activeVideoUrl || currentPlayingEpisode.id}
               src={activeVideoUrl || currentPlayingEpisode.videoUrl}
-              poster={currentPlayingEpisode.thumbnailUrl || currentSeries.thumbnailUrl}
               autoPlay
               playsInline
               onCanPlay={handleCanPlay}
@@ -642,8 +653,6 @@ export const SeriesDetail: React.FC = () => {
               }`}
             >
               <source src={activeVideoUrl || currentPlayingEpisode.videoUrl} type="video/mp4" />
-              <source src="https://media.w3.org/2010/05/sintel/trailer.mp4" type="video/mp4" />
-              <source src="https://vjs.zencdn.net/v/oceans.mp4" type="video/mp4" />
             </video>
 
             {/* Video Error Recovery Overlay */}
@@ -732,7 +741,12 @@ export const SeriesDetail: React.FC = () => {
             <div
               onClick={(e) => {
                 if (e.target === e.currentTarget) {
-                  toggleControls(e);
+                  e.stopPropagation();
+                  setShowControls(false);
+                  if (controlsTimeoutRef.current) {
+                    clearTimeout(controlsTimeoutRef.current);
+                    controlsTimeoutRef.current = null;
+                  }
                 } else {
                   startControlsHideTimer();
                 }
@@ -1053,8 +1067,8 @@ export const SeriesDetail: React.FC = () => {
             </div>
           </div>
 
-          {/* Compact Small Square Boxes Grid */}
-          <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1.5">
+          {/* Episode Section in ONLY ONE ROW (Horizontal Scrollable Strip) */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth">
             {activeSeason.episodes.map((ep) => {
               const watched = isEpisodeWatched(ep.episodeNumber, activeSeason.seasonNumber);
               const downloaded = isEpisodeDownloaded(ep.episodeNumber, activeSeason.seasonNumber);
@@ -1067,7 +1081,7 @@ export const SeriesDetail: React.FC = () => {
                   key={ep.id}
                   type="button"
                   onClick={() => handlePlayEpisode(ep, activeSeason.seasonNumber)}
-                  className={`group relative aspect-square rounded-lg flex flex-col items-center justify-center p-1 transition-all duration-150 border active:scale-90 select-none ${
+                  className={`group relative shrink-0 min-w-[62px] h-14 px-3 rounded-xl flex flex-col items-center justify-center transition-all duration-150 border active:scale-95 select-none ${
                     isCurrentlyPlaying
                       ? 'bg-rose-600 border-white text-white font-black shadow-lg shadow-rose-600/50 ring-2 ring-rose-500/50 scale-105 z-10'
                       : watched
@@ -1079,23 +1093,26 @@ export const SeriesDetail: React.FC = () => {
                   <span className="font-black text-xs tracking-tight">
                     E{ep.episodeNumber}
                   </span>
+                  <span className="text-[10px] text-slate-400 font-mono font-medium truncate max-w-[50px]">
+                    {ep.duration || '45m'}
+                  </span>
 
                   {/* Watched Small Tick Badge */}
                   {!isCurrentlyPlaying && watched && (
-                    <div className="absolute top-0.5 right-0.5">
+                    <div className="absolute top-1 right-1">
                       <CheckCircle2 className="w-2.5 h-2.5 text-rose-400" />
                     </div>
                   )}
 
                   {/* Playing mini icon */}
                   {isCurrentlyPlaying && (
-                    <div className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-white animate-ping" />
+                    <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-white animate-ping" />
                   )}
 
                   {/* Downloaded mini stamp */}
                   {downloaded && !isCurrentlyPlaying && (
-                    <div className="absolute bottom-0.5 right-0.5">
-                      <Download className="w-2 h-2 text-emerald-400" />
+                    <div className="absolute bottom-1 right-1">
+                      <Download className="w-2.5 h-2.5 text-emerald-400" />
                     </div>
                   )}
                 </button>

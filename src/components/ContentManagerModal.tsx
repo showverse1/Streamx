@@ -16,7 +16,8 @@ import {
   RefreshCw,
   HelpCircle,
   FileCode,
-  Sparkles
+  Sparkles,
+  Edit3
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Series, Season, Episode } from '../types';
@@ -102,9 +103,9 @@ export const ContentManagerModal: React.FC = () => {
     series,
     bulkAddSeries,
     addSeries,
+    updateSeries,
     deleteSeries,
     clearAllSeries,
-    loadSeries,
     haptic
   } = useAppStore();
 
@@ -114,7 +115,8 @@ export const ContentManagerModal: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Form states for manual single entry
+  // Form states for manual single entry / editing
+  const [editingSeriesId, setEditingSeriesId] = useState<string | null>(null);
   const [formType, setFormType] = useState<'movie' | 'series'>('series');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Action');
@@ -122,8 +124,7 @@ export const ContentManagerModal: React.FC = () => {
   const [year, setYear] = useState(new Date().getFullYear());
   const [description, setDescription] = useState('');
   const [tagsInput, setTagsInput] = useState('Action, HD');
-  const [thumbnailUrl, setThumbnailUrl] = useState('');
-  const [bannerUrl, setBannerUrl] = useState('');
+  const [posterUrl, setPosterUrl] = useState('');
 
   // Seasons & Episodes Builder
   const [formSeasons, setFormSeasons] = useState<Season[]>([
@@ -200,13 +201,38 @@ export const ContentManagerModal: React.FC = () => {
         type: 'success',
         text: `Successfully imported ${items.length} titles and synced with Cloud Firestore!`
       });
-      loadSeries();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Invalid JSON format. Please verify syntax.';
       setStatusMsg({ type: 'error', text: message });
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleEditSeries = (item: Series) => {
+    haptic(40);
+    setEditingSeriesId(item.id);
+    setTitle(item.title);
+    setCategory(item.category || 'Action');
+    setRating(item.rating || '9.0');
+    setYear(item.year || new Date().getFullYear());
+    setPosterUrl(item.thumbnailUrl || item.bannerUrl || '');
+    setTagsInput((item.tags || []).join(', '));
+    setDescription(item.description || '');
+    const isMovie = item.seasons.length === 1 && (item.seasons[0].title.toLowerCase().includes('movie') || item.seasons[0].episodes.length === 1);
+    setFormType(isMovie ? 'movie' : 'series');
+    setFormSeasons(JSON.parse(JSON.stringify(item.seasons)));
+    setActiveTab('form');
+    setStatusMsg({ type: 'success', text: `Loaded "${item.title}" for editing. You can update episodes, video URLs, and title details below.` });
+  };
+
+  const handleCancelEdit = () => {
+    haptic(30);
+    setEditingSeriesId(null);
+    setTitle('');
+    setPosterUrl('');
+    setDescription('');
+    setStatusMsg(null);
   };
 
   const handleAddSeason = () => {
@@ -264,38 +290,50 @@ export const ContentManagerModal: React.FC = () => {
     setStatusMsg(null);
     setIsProcessing(true);
 
-    if (!title.trim() || !thumbnailUrl.trim()) {
-      setStatusMsg({ type: 'error', text: 'Title and Thumbnail URL are required.' });
+    if (!title.trim() || !posterUrl.trim()) {
+      setStatusMsg({ type: 'error', text: 'Title and Poster Image URL are required.' });
       setIsProcessing(false);
       return;
     }
 
-    const newId = title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || `title-${Date.now()}`;
+    const seriesId = editingSeriesId || title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || `title-${Date.now()}`;
     const parsedTags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
 
-    const newSeries: Series = {
-      id: newId,
+    const savedSeries: Series = {
+      id: seriesId,
       title: title.trim(),
-      thumbnailUrl: thumbnailUrl.trim(),
-      bannerUrl: bannerUrl.trim() || thumbnailUrl.trim(),
+      thumbnailUrl: posterUrl.trim(),
+      bannerUrl: posterUrl.trim(),
       category: category || 'Action',
       rating: rating.trim() || '9.0',
       year: Number(year) || new Date().getFullYear(),
       description: description.trim() || 'No description provided.',
       tags: parsedTags.length > 0 ? parsedTags : [category, formType === 'movie' ? 'Movie' : 'Web Series'],
-      uploadTimestamp: Date.now(),
-      seasons: formSeasons
+      uploadTimestamp: editingSeriesId
+        ? (series.find((s) => s.id === editingSeriesId)?.uploadTimestamp || Date.now())
+        : Date.now(),
+      seasons: formSeasons.map((s) => ({
+        ...s,
+        episodes: s.episodes.map((ep) => ({
+          ...ep,
+          thumbnailUrl: posterUrl.trim()
+        }))
+      }))
     };
 
     try {
-      await addSeries(newSeries);
-      setStatusMsg({ type: 'success', text: `"${newSeries.title}" added to Cloud Firestore!` });
+      if (editingSeriesId) {
+        await updateSeries(savedSeries);
+        setStatusMsg({ type: 'success', text: `"${savedSeries.title}" updated successfully in Cloud Firestore!` });
+        setEditingSeriesId(null);
+      } else {
+        await addSeries(savedSeries);
+        setStatusMsg({ type: 'success', text: `"${savedSeries.title}" added to Cloud Firestore!` });
+      }
       // Reset form
       setTitle('');
-      setThumbnailUrl('');
-      setBannerUrl('');
+      setPosterUrl('');
       setDescription('');
-      loadSeries();
     } catch (err: unknown) {
       setStatusMsg({ type: 'error', text: err instanceof Error ? err.message : 'Save failed.' });
     } finally {
@@ -310,7 +348,6 @@ export const ContentManagerModal: React.FC = () => {
       await clearAllSeries();
       setIsProcessing(false);
       setStatusMsg({ type: 'success', text: 'Catalog cleared! You can now import your own movies & series.' });
-      loadSeries();
     }
   };
 
@@ -500,9 +537,33 @@ export const ContentManagerModal: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 2: VISUAL FORM CREATOR */}
+          {/* TAB 2: VISUAL FORM CREATOR / EDITOR */}
           {activeTab === 'form' && (
             <form onSubmit={handleSaveForm} className="space-y-5">
+              {/* Editing Notification Banner */}
+              {editingSeriesId && (
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-rose-950/80 to-slate-900 border border-rose-500/50 flex items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-rose-600/30 flex items-center justify-center text-rose-400 shrink-0">
+                      <Edit3 className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] uppercase font-black tracking-wider text-rose-400 block">Edit Mode Active</span>
+                      <span className="text-xs font-bold text-white truncate block">
+                        Modifying: {title || 'Selected Title'}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-all shrink-0 border border-slate-700"
+                  >
+                    Cancel Edit
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center gap-3 pb-2 border-b border-slate-800">
                 <label className="text-xs font-bold text-slate-300">Content Type:</label>
                 <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800">
@@ -579,25 +640,14 @@ export const ContentManagerModal: React.FC = () => {
                   </select>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Portrait Thumbnail URL *</label>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Poster / Banner Image URL *</label>
                   <input
                     type="url"
                     required
-                    value={thumbnailUrl}
-                    onChange={(e) => setThumbnailUrl(e.target.value)}
-                    placeholder="https://... poster image (2:3 or 3:4 ratio)"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-rose-500"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Landscape Banner URL</label>
-                  <input
-                    type="url"
-                    value={bannerUrl}
-                    onChange={(e) => setBannerUrl(e.target.value)}
-                    placeholder="https://... hero banner (16:9 ratio)"
+                    value={posterUrl}
+                    onChange={(e) => setPosterUrl(e.target.value)}
+                    placeholder="https://... image URL (auto applies to poster cards and banner)"
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-rose-500"
                   />
                 </div>
@@ -753,20 +803,6 @@ export const ContentManagerModal: React.FC = () => {
                               className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-rose-200 text-xs font-mono"
                             />
                           </div>
-
-                          <div className="space-y-1">
-                            <input
-                              type="url"
-                              value={ep.thumbnailUrl || ''}
-                              onChange={(e) => {
-                                const updated = [...formSeasons];
-                                updated[sIdx].episodes[eIdx].thumbnailUrl = e.target.value;
-                                setFormSeasons(updated);
-                              }}
-                              placeholder="Episode Thumbnail Image URL (optional)"
-                              className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 text-xs"
-                            />
-                          </div>
                         </div>
                       ))}
                     </div>
@@ -781,8 +817,14 @@ export const ContentManagerModal: React.FC = () => {
                   disabled={isProcessing}
                   className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-98 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all flex items-center gap-2"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>{isProcessing ? 'Saving to Cloud Firestore...' : 'Publish to Firestore Database'}</span>
+                  {editingSeriesId ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  <span>
+                    {isProcessing
+                      ? 'Saving to Cloud Firestore...'
+                      : editingSeriesId
+                      ? 'Update Series & Episodes'
+                      : 'Publish to Firestore Database'}
+                  </span>
                 </button>
               </div>
             </form>
@@ -857,18 +899,28 @@ export const ContentManagerModal: React.FC = () => {
                             </span>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`Delete "${item.title}" from database?`)) {
-                              deleteSeries(item.id);
-                            }
-                          }}
-                          className="p-2 rounded-xl bg-slate-900 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-800 text-slate-400 hover:text-rose-400 transition-colors"
-                          title="Delete from Firestore"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleEditSeries(item)}
+                            className="p-2 rounded-xl bg-slate-900 hover:bg-sky-950/60 border border-slate-800 hover:border-sky-700 text-slate-300 hover:text-sky-400 transition-colors"
+                            title="Edit Series & Episodes"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Delete "${item.title}" from database?`)) {
+                                deleteSeries(item.id);
+                              }
+                            }}
+                            className="p-2 rounded-xl bg-slate-900 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-800 text-slate-400 hover:text-rose-400 transition-colors"
+                            title="Delete from Firestore"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

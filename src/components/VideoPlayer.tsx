@@ -426,7 +426,7 @@ export const VideoPlayer: React.FC = () => {
       onDoubleClick={handleDoubleClick}
       onClick={resetControlsTimeout}
     >
-      {/* HTML5 Video Element with Fallback Sources */}
+      {/* HTML5 Video Element */}
       <video
         ref={videoRef}
         key={activeVideoUrl}
@@ -443,8 +443,6 @@ export const VideoPlayer: React.FC = () => {
         onError={handleVideoError}
       >
         <source src={activeVideoUrl} type="video/mp4" />
-        <source src="https://media.w3.org/2010/05/sintel/trailer.mp4" type="video/mp4" />
-        <source src="https://vjs.zencdn.net/v/oceans.mp4" type="video/mp4" />
       </video>
 
       {/* Video Source Error Recovery Banner */}

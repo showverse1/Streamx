@@ -65,6 +65,7 @@ interface AppState {
   isContentManagerOpen: boolean;
   setIsContentManagerOpen: (open: boolean) => void;
   addSeries: (series: Series) => Promise<void>;
+  updateSeries: (series: Series) => Promise<void>;
   bulkAddSeries: (seriesList: Series[]) => Promise<void>;
   deleteSeries: (seriesId: string) => Promise<void>;
   clearAllSeries: () => Promise<void>;
@@ -308,6 +309,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     await saveSeriesToFirestore(series);
     const existing = get().series.filter((s) => s.id !== series.id);
     set({ series: [series, ...existing] });
+  },
+
+  updateSeries: async (series: Series) => {
+    get().haptic(40);
+    await saveSeriesToFirestore(series);
+    set({
+      series: get().series.map((s) => (s.id === series.id ? series : s))
+    });
   },
 
   bulkAddSeries: async (seriesList: Series[]) => {
