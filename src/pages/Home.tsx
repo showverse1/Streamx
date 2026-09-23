@@ -12,6 +12,7 @@ export const Home: React.FC = () => {
     setSelectedCategory,
     openSeriesWithEpisode,
     setSelectedSeriesId,
+    setIsContentManagerOpen,
     haptic
   } = useAppStore();
 
@@ -78,6 +79,33 @@ export const Home: React.FC = () => {
             <div key={i} className="h-52 bg-slate-800/60 rounded-xl" />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (series.length === 0) {
+    return (
+      <div className="p-6 text-center space-y-4 max-w-sm mx-auto pt-16 animate-in fade-in duration-200">
+        <div className="w-16 h-16 rounded-3xl bg-rose-600/20 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-500 shadow-xl shadow-rose-600/10">
+          <Film className="w-8 h-8" />
+        </div>
+        <div>
+          <h2 className="text-lg font-black text-white">Catalog is Clean</h2>
+          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+            AI videos have been removed. You can now add your own movies, web series, episodes, thumbnails, and video streaming links!
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            haptic(40);
+            setIsContentManagerOpen(true);
+          }}
+          className="w-full py-3 px-5 rounded-2xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-xs shadow-xl shadow-rose-600/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
+          <Sparkles className="w-4 h-4 text-amber-200" />
+          <span>Upload Movies & Series (Bulk Import)</span>
+        </button>
       </div>
     );
   }

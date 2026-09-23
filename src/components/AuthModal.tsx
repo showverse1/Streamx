@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Mail, Lock, User, Eye, EyeOff, ShieldCheck, LogIn, UserPlus, Sparkles } from 'lucide-react';
+import { X, Mail, Lock, User, Eye, EyeOff, ShieldCheck, LogIn, UserPlus } from 'lucide-react';
 import { useAppStore } from '../store';
 
 export const AuthModal: React.FC = () => {
@@ -48,21 +48,6 @@ export const AuthModal: React.FC = () => {
     if (!res.success) {
       setErrorMessage(res.error || 'Google sign-in could not be completed.');
     }
-  };
-
-  const handleDemoLogin = async () => {
-    haptic(40);
-    setIsLoading(true);
-    setErrorMessage(null);
-    const res = await login('user@streamx.app', 'streamx123');
-    if (!res.success) {
-      // If demo user doesn't exist yet on Firebase, auto-register
-      const regRes = await register('user@streamx.app', 'streamx123', 'Demo Member');
-      if (!regRes.success) {
-        setErrorMessage(regRes.error || 'Demo login failed.');
-      }
-    }
-    setIsLoading(false);
   };
 
   return (
@@ -226,8 +211,8 @@ export const AuthModal: React.FC = () => {
           </span>
         </div>
 
-        {/* Google & Demo Auth buttons */}
-        <div className="space-y-2 pt-1">
+        {/* Google Auth button */}
+        <div className="pt-1">
           <button
             type="button"
             onClick={handleGoogleSignIn}
@@ -253,16 +238,6 @@ export const AuthModal: React.FC = () => {
               />
             </svg>
             <span>Continue with Google</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            disabled={isLoading}
-            className="w-full py-2 px-3 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800/80 text-slate-400 hover:text-slate-200 text-xs font-semibold transition-all flex items-center justify-center gap-1.5"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Instant Demo Account (1-Click)</span>
           </button>
         </div>
       </div>

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { VideoPlayer } from './components/VideoPlayer';
 import { AuthModal } from './components/AuthModal';
+import { ContentManagerModal } from './components/ContentManagerModal';
 import { Home } from './pages/Home';
 import { SeriesDetail } from './pages/SeriesDetail';
 import { Search } from './pages/Search';
@@ -55,6 +56,9 @@ export default function App() {
 
       {/* Email & Password Authentication Modal */}
       <AuthModal />
+
+      {/* Content Studio & Bulk Uploader Modal */}
+      <ContentManagerModal />
 
       {/* Fullscreen Video Player with Custom Touch Gestures & Landscape Lock (for Home/Downloads; SeriesDetail uses inline YouTube player) */}
       {activePlayback && !selectedSeriesId && <VideoPlayer />}

@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { Series, Season, Episode, WatchHistoryItem, DownloadItem, TabType, UserProfile } from './types';
 import {
   fetchSeriesData,
+  saveSeriesToFirestore,
+  bulkSaveSeriesToFirestore,
+  deleteSeriesFromFirestore,
+  clearAllSeriesInFirestore,
   loginWithFirebase,
   registerWithFirebase,
   loginWithGoogleFirebase,
@@ -58,6 +62,12 @@ interface AppState {
   
   // Data actions
   loadSeries: () => Promise<void>;
+  isContentManagerOpen: boolean;
+  setIsContentManagerOpen: (open: boolean) => void;
+  addSeries: (series: Series) => Promise<void>;
+  bulkAddSeries: (seriesList: Series[]) => Promise<void>;
+  deleteSeries: (seriesId: string) => Promise<void>;
+  clearAllSeries: () => Promise<void>;
   
   // Playback & Watch History actions
   startPlayback: (series: Series, seasonNum: number, episode: Episode) => void;
@@ -280,6 +290,40 @@ export const useAppStore = create<AppState>((set, get) => ({
         isLoading: false
       });
     }
+  },
+
+  isContentManagerOpen: false,
+  setIsContentManagerOpen: (open: boolean) => set({ isContentManagerOpen: open }),
+
+  addSeries: async (series: Series) => {
+    get().haptic(40);
+    await saveSeriesToFirestore(series);
+    const existing = get().series.filter((s) => s.id !== series.id);
+    set({ series: [series, ...existing] });
+  },
+
+  bulkAddSeries: async (seriesList: Series[]) => {
+    get().haptic(50);
+    await bulkSaveSeriesToFirestore(seriesList);
+    const current = get().series;
+    const map = new Map<string, Series>();
+    seriesList.forEach((s) => map.set(s.id, s));
+    current.forEach((s) => {
+      if (!map.has(s.id)) map.set(s.id, s);
+    });
+    set({ series: Array.from(map.values()) });
+  },
+
+  deleteSeries: async (seriesId: string) => {
+    get().haptic(40);
+    await deleteSeriesFromFirestore(seriesId);
+    set({ series: get().series.filter((s) => s.id !== seriesId) });
+  },
+
+  clearAllSeries: async () => {
+    get().haptic(60);
+    await clearAllSeriesInFirestore();
+    set({ series: [] });
   },
 
   startPlayback: (series: Series, seasonNum: number, episode: Episode) => {
