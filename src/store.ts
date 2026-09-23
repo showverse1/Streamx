@@ -14,6 +14,7 @@ interface AppState {
   // Navigation & System
   currentTab: TabType;
   selectedSeriesId: string | null;
+  initialEpisodeTarget: { seasonNum: number; episodeNum: number } | null;
   activePlayback: ActivePlayback | null;
   backExitWarning: boolean;
   
@@ -39,6 +40,7 @@ interface AppState {
   // Actions
   setCurrentTab: (tab: TabType) => void;
   setSelectedSeriesId: (id: string | null) => void;
+  openSeriesWithEpisode: (seriesId: string, seasonNum?: number, episodeNum?: number) => void;
   setSelectedCategory: (category: string) => void;
   setBackExitWarning: (show: boolean) => void;
   
@@ -70,6 +72,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   currentTab: 'home',
   selectedSeriesId: null,
+  initialEpisodeTarget: null,
   activePlayback: null,
   backExitWarning: false,
 
@@ -154,7 +157,18 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSelectedSeriesId: (id: string | null) => {
     get().haptic(40);
-    set({ selectedSeriesId: id });
+    set({ selectedSeriesId: id, initialEpisodeTarget: null, activePlayback: null });
+  },
+
+  openSeriesWithEpisode: (seriesId: string, seasonNum?: number, episodeNum?: number) => {
+    get().haptic(50);
+    set({
+      selectedSeriesId: seriesId,
+      initialEpisodeTarget: (seasonNum !== undefined && episodeNum !== undefined)
+        ? { seasonNum, episodeNum }
+        : null,
+      activePlayback: null
+    });
   },
 
   setSelectedCategory: (category: string) => {

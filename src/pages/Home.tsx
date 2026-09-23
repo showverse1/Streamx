@@ -10,8 +10,8 @@ export const Home: React.FC = () => {
     loadSeries,
     selectedCategory,
     setSelectedCategory,
+    openSeriesWithEpisode,
     setSelectedSeriesId,
-    startPlayback,
     haptic
   } = useAppStore();
 
@@ -43,15 +43,22 @@ export const Home: React.FC = () => {
 
   const handleSeriesClick = (item: Series) => {
     haptic(40);
-    setSelectedSeriesId(item.id);
+    const firstSeason = item.seasons[0];
+    const firstEp = firstSeason?.episodes[0];
+    if (firstSeason && firstEp) {
+      openSeriesWithEpisode(item.id, firstSeason.seasonNumber, firstEp.episodeNumber);
+    } else {
+      setSelectedSeriesId(item.id);
+    }
   };
 
   const handleQuickPlay = (e: React.MouseEvent, item: Series) => {
     e.stopPropagation();
     haptic(60);
     const firstSeason = item.seasons[0];
-    if (firstSeason && firstSeason.episodes.length > 0) {
-      startPlayback(item, firstSeason.seasonNumber, firstSeason.episodes[0]);
+    const firstEp = firstSeason?.episodes[0];
+    if (firstSeason && firstEp) {
+      openSeriesWithEpisode(item.id, firstSeason.seasonNumber, firstEp.episodeNumber);
     } else {
       setSelectedSeriesId(item.id);
     }

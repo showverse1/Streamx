@@ -30,7 +30,7 @@ export const Profile: React.FC = () => {
     watchHistory,
     recentSearches,
     clearAllHistory,
-    startPlayback,
+    openSeriesWithEpisode,
     series,
     setSelectedSeriesId,
     haptic
@@ -51,18 +51,12 @@ export const Profile: React.FC = () => {
 
   const handleResume = (item: WatchHistoryItem) => {
     haptic(50);
-    const targetSeries = series.find((s) => s.id === item.seriesId);
-    if (!targetSeries) return;
-
-    const season = targetSeries.seasons.find((s) => s.seasonNumber === item.seasonNum) || targetSeries.seasons[0];
-    const episode = season.episodes.find((e) => e.episodeNumber === item.episodeNum) || season.episodes[0];
-
-    startPlayback(targetSeries, season.seasonNumber, episode);
+    openSeriesWithEpisode(item.seriesId, item.seasonNum, item.episodeNum);
   };
 
   const handleOpenSeries = (seriesId: string) => {
     haptic(40);
-    setSelectedSeriesId(seriesId);
+    openSeriesWithEpisode(seriesId, 1, 1);
   };
 
   const handleConfirmClear = () => {

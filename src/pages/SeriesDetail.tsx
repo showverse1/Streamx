@@ -24,11 +24,10 @@ export const SeriesDetail: React.FC = () => {
   const {
     selectedSeriesId,
     setSelectedSeriesId,
+    initialEpisodeTarget,
     series,
     watchHistory,
-    startPlayback,
     stopPlayback,
-    activePlayback,
     recordEpisodeWatch,
     addDownload,
     downloads,
@@ -40,7 +39,7 @@ export const SeriesDetail: React.FC = () => {
   }, [series, selectedSeriesId]);
 
   const [activeSeasonNum, setActiveSeasonNum] = useState<number>(1);
-  const [isPlayingInline, setIsPlayingInline] = useState<boolean>(false);
+  const [isPlayingInline, setIsPlayingInline] = useState<boolean>(true);
   const [currentPlayingEpisode, setCurrentPlayingEpisode] = useState<Episode | null>(null);
 
   // Video element state
@@ -55,6 +54,47 @@ export const SeriesDetail: React.FC = () => {
   const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string>('');
   const [videoError, setVideoError] = useState<boolean>(false);
+
+  // Auto-play immediately on series mount (No manual play button needed!)
+  useEffect(() => {
+    if (!currentSeries) return;
+
+    let targetSeasonNum = 1;
+    let targetEpisode: Episode | undefined;
+
+    if (initialEpisodeTarget) {
+      targetSeasonNum = initialEpisodeTarget.seasonNum;
+      const season = currentSeries.seasons.find((s) => s.seasonNumber === targetSeasonNum) || currentSeries.seasons[0];
+      if (season) {
+        targetEpisode = season.episodes.find((e) => e.episodeNumber === initialEpisodeTarget.episodeNum) || season.episodes[0];
+      }
+    } else {
+      // Find last watched episode for this series in watchHistory
+      const lastWatched = watchHistory.find((w) => w.seriesId === currentSeries.id);
+      if (lastWatched) {
+        targetSeasonNum = lastWatched.seasonNum;
+        const season = currentSeries.seasons.find((s) => s.seasonNumber === targetSeasonNum) || currentSeries.seasons[0];
+        if (season) {
+          targetEpisode = season.episodes.find((e) => e.episodeNumber === lastWatched.episodeNum) || season.episodes[0];
+        }
+      } else {
+        const firstSeason = currentSeries.seasons[0];
+        targetEpisode = firstSeason?.episodes[0];
+        targetSeasonNum = firstSeason?.seasonNumber || 1;
+      }
+    }
+
+    if (targetEpisode) {
+      setActiveSeasonNum(targetSeasonNum);
+      setCurrentPlayingEpisode(targetEpisode);
+      setIsPlayingInline(true);
+      setIsVideoPaused(false);
+      if (targetEpisode.videoUrl) {
+        setActiveVideoUrl(targetEpisode.videoUrl);
+      }
+      recordEpisodeWatch(currentSeries, targetSeasonNum, targetEpisode, 0);
+    }
+  }, [currentSeries?.id, initialEpisodeTarget]);
 
   // Sync active video url when episode changes
   useEffect(() => {
@@ -119,9 +159,6 @@ export const SeriesDetail: React.FC = () => {
 
     // Save exact episode played to watch history immediately
     recordEpisodeWatch(currentSeries, seasonNum, episode, 0);
-
-    // Also update global store
-    startPlayback(currentSeries, seasonNum, episode);
 
     // Scroll to top so the video player is in view
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -346,13 +383,13 @@ export const SeriesDetail: React.FC = () => {
                   onClick={(e) => {
                     e.stopPropagation();
                     haptic(40);
-                    setIsPlayingInline(false);
-                    stopPlayback();
+                    setSelectedSeriesId(null);
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95 text-xs font-semibold border border-white/10"
+                  aria-label="Back"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  <span>Close Player</span>
+                  <span>Back</span>
                 </button>
 
                 <div className="flex items-center gap-2">
@@ -645,8 +682,7 @@ export const SeriesDetail: React.FC = () => {
               const downloaded = isEpisodeDownloaded(ep.episodeNumber, activeSeason.seasonNumber);
               const isCurrentlyPlaying =
                 isPlayingInline &&
-                currentPlayingEpisode?.id === ep.id &&
-                activePlayback?.seasonNum === activeSeason.seasonNumber;
+                currentPlayingEpisode?.id === ep.id;
 
               return (
                 <button

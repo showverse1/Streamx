@@ -4,53 +4,12 @@ import { useAppStore } from '../store';
 import { DownloadItem } from '../types';
 
 export const Downloads: React.FC = () => {
-  const { downloads, deleteDownload, startPlayback, series, setCurrentTab, haptic } = useAppStore();
+  const { downloads, deleteDownload, openSeriesWithEpisode, series, setCurrentTab, haptic } = useAppStore();
 
   const handlePlayDownloaded = (item: DownloadItem) => {
     haptic(50);
-    // Find the corresponding series and episode
-    const targetSeries = series.find((s) => s.id === item.seriesId);
-    if (targetSeries) {
-      const season = targetSeries.seasons.find((s) => s.seasonNumber === item.seasonNum) || targetSeries.seasons[0];
-      const ep = season.episodes.find((e) => e.episodeNumber === item.episodeNum) || season.episodes[0];
-      startPlayback(targetSeries, season.seasonNumber, ep);
-    } else {
-      // Fallback virtual playback item
-      startPlayback(
-        {
-          id: item.seriesId,
-          title: item.seriesTitle,
-          thumbnailUrl: item.thumbnailUrl,
-          category: 'Offline',
-          uploadTimestamp: item.downloadDate,
-          seasons: [
-            {
-              seasonNumber: item.seasonNum,
-              title: `Season ${item.seasonNum}`,
-              episodes: [
-                {
-                  id: item.id,
-                  episodeNumber: item.episodeNum,
-                  title: item.episodeTitle,
-                  duration: 'Offline Cached',
-                  durationSeconds: 600,
-                  videoUrl: item.videoUrl
-                }
-              ]
-            }
-          ]
-        },
-        item.seasonNum,
-        {
-          id: item.id,
-          episodeNumber: item.episodeNum,
-          title: item.episodeTitle,
-          duration: 'Offline Cached',
-          durationSeconds: 600,
-          videoUrl: item.videoUrl
-        }
-      );
-    }
+    // Open the series directly with the half video player playing this episode
+    openSeriesWithEpisode(item.seriesId, item.seasonNum, item.episodeNum);
   };
 
   const totalSizeMB = downloads.reduce((acc, d) => {
@@ -93,7 +52,7 @@ export const Downloads: React.FC = () => {
             <span>Saved for Offline</span>
           </h4>
           <span className="text-xs text-emerald-400 flex items-center gap-1 font-semibold">
-            <CheckCircle2 className="w-3.5 h-3.5" /> PWA Cache
+            <CheckCircle2 className="w-3.5 h-3.5" /> Offline Storage
           </span>
         </div>
 

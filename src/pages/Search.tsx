@@ -7,7 +7,7 @@ export const Search: React.FC = () => {
   const {
     series,
     setSelectedSeriesId,
-    startPlayback,
+    openSeriesWithEpisode,
     haptic,
     recentSearches,
     addRecentSearch,
@@ -70,7 +70,13 @@ export const Search: React.FC = () => {
       addRecentSearch(query.trim());
     }
     haptic(40);
-    setSelectedSeriesId(s.id);
+    const s1 = s.seasons[0];
+    const ep1 = s1?.episodes[0];
+    if (s1 && ep1) {
+      openSeriesWithEpisode(s.id, s1.seasonNumber, ep1.episodeNumber);
+    } else {
+      setSelectedSeriesId(s.id);
+    }
   };
 
   const handleQuickPlay = (e: React.MouseEvent, s: Series) => {
@@ -80,8 +86,9 @@ export const Search: React.FC = () => {
     }
     haptic(50);
     const s1 = s.seasons[0];
-    if (s1 && s1.episodes.length > 0) {
-      startPlayback(s, s1.seasonNumber, s1.episodes[0]);
+    const ep1 = s1?.episodes[0];
+    if (s1 && ep1) {
+      openSeriesWithEpisode(s.id, s1.seasonNumber, ep1.episodeNumber);
     } else {
       setSelectedSeriesId(s.id);
     }
