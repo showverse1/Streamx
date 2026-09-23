@@ -15,7 +15,9 @@ import {
   Minimize2,
   Bookmark,
   Film,
-  Sparkles
+  Sparkles,
+  Scaling,
+  Sun
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Episode } from '../types';
@@ -41,6 +43,37 @@ export const SeriesDetail: React.FC = () => {
   const [activeSeasonNum, setActiveSeasonNum] = useState<number>(1);
   const [isPlayingInline, setIsPlayingInline] = useState<boolean>(true);
   const [currentPlayingEpisode, setCurrentPlayingEpisode] = useState<Episode | null>(null);
+
+  // Aspect Ratio Mode: 'fit' (16:9 contain), 'stretch' (fill container), 'crop' (cover/zoom)
+  const [aspectRatioMode, setAspectRatioMode] = useState<'fit' | 'stretch' | 'crop'>('fit');
+
+  // Gestures: Volume (0..1) & Brightness (0.2..1.5)
+  const [volume, setVolume] = useState<number>(1);
+  const [brightness, setBrightness] = useState<number>(1);
+
+  // Gesture HUD Overlay state
+  const [gestureHUD, setGestureHUD] = useState<{
+    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'aspect' | null;
+    value: string | number;
+  }>({ type: null, value: 0 });
+  const hudTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Double-tap Seek Ripple state
+  const [ripple, setRipple] = useState<{ side: 'left' | 'right'; key: number } | null>(null);
+  const rippleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Touch gesture tracker refs
+  const touchStartRef = useRef<{
+    x: number;
+    y: number;
+    time: number;
+    initialBrightness: number;
+    initialVolume: number;
+    isVerticalDrag: boolean;
+  } | null>(null);
+
+  const lastTapRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const singleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Video element state
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -249,10 +282,42 @@ export const SeriesDetail: React.FC = () => {
     }
   };
 
+  const triggerHUD = (
+    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'aspect',
+    value: string | number
+  ) => {
+    setGestureHUD({ type, value });
+    if (hudTimeoutRef.current) clearTimeout(hudTimeoutRef.current);
+    hudTimeoutRef.current = setTimeout(() => {
+      setGestureHUD({ type: null, value: 0 });
+    }, 1200);
+  };
+
+  const triggerRipple = (side: 'left' | 'right') => {
+    setRipple({ side, key: Date.now() });
+    if (rippleTimeoutRef.current) clearTimeout(rippleTimeoutRef.current);
+    rippleTimeoutRef.current = setTimeout(() => {
+      setRipple(null);
+    }, 700);
+  };
+
+  const cycleAspectRatio = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    haptic(40);
+    setAspectRatioMode((prev) => {
+      const next = prev === 'fit' ? 'stretch' : prev === 'stretch' ? 'crop' : 'fit';
+      const label = next === 'fit' ? 'Fit (16:9)' : next === 'stretch' ? 'Stretch (Fill)' : 'Crop (Zoom)';
+      triggerHUD('aspect', label);
+      return next;
+    });
+  };
+
   const handleSeek = (seconds: number) => {
     if (!videoRef.current) return;
     haptic(30);
-    videoRef.current.currentTime = Math.max(0, Math.min(videoRef.current.currentTime + seconds, duration));
+    const target = Math.max(0, Math.min(videoRef.current.currentTime + seconds, duration));
+    videoRef.current.currentTime = target;
+    setCurrentTime(target);
   };
 
   const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -297,9 +362,127 @@ export const SeriesDetail: React.FC = () => {
     }, 3500);
   };
 
+  // Touch handlers for video player screen gestures (Double-tap & swipe controls)
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    touchStartRef.current = {
+      x,
+      y,
+      time: Date.now(),
+      initialBrightness: brightness,
+      initialVolume: videoRef.current ? videoRef.current.volume : volume,
+      isVerticalDrag: false
+    };
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStartRef.current || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const currentY = touch.clientY - rect.top;
+    const currentX = touch.clientX - rect.left;
+    const deltaY = touchStartRef.current.y - currentY; // Upward swipe = positive
+    const deltaX = Math.abs(currentX - touchStartRef.current.x);
+
+    // If moving vertically more than 8px and deltaY > deltaX
+    if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > deltaX) {
+      touchStartRef.current.isVerticalDrag = true;
+      const height = rect.height;
+      const change = deltaY / height; // Normalized drag range
+
+      if (touchStartRef.current.x <= rect.width * 0.5) {
+        // LEFT SIDE: Brightness control (0.2 to 1.5)
+        const newBrightness = Math.max(0.2, Math.min(1.5, touchStartRef.current.initialBrightness + change * 1.6));
+        setBrightness(newBrightness);
+        triggerHUD('brightness', `${Math.round((newBrightness / 1.5) * 100)}%`);
+      } else {
+        // RIGHT SIDE: Volume control (0 to 1.0)
+        const newVolume = Math.max(0, Math.min(1.0, touchStartRef.current.initialVolume + change * 1.6));
+        setVolume(newVolume);
+        if (videoRef.current) {
+          videoRef.current.volume = newVolume;
+          videoRef.current.muted = newVolume === 0;
+        }
+        setIsMuted(newVolume === 0);
+        triggerHUD('volume', `${Math.round(newVolume * 100)}%`);
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStartRef.current) return;
+    const { isVerticalDrag, x } = touchStartRef.current;
+    const now = Date.now();
+    const rect = e.currentTarget.getBoundingClientRect();
+
+    if (isVerticalDrag) {
+      touchStartRef.current = null;
+      return;
+    }
+
+    const lastTap = lastTapRef.current;
+    if (lastTap && (now - lastTap.time) < 320 && Math.abs(x - lastTap.x) < 55) {
+      // DOUBLE TAP RECOGNIZED!
+      if (singleTapTimeoutRef.current) {
+        clearTimeout(singleTapTimeoutRef.current);
+        singleTapTimeoutRef.current = null;
+      }
+      lastTapRef.current = null;
+
+      if (x > rect.width * 0.55) {
+        // RIGHT SIDE DOUBLE TAP -> +10s forward!
+        handleSeek(10);
+        triggerRipple('right');
+        triggerHUD('seek-forward', '+10s');
+      } else if (x < rect.width * 0.45) {
+        // LEFT SIDE DOUBLE TAP -> -10s backward!
+        handleSeek(-10);
+        triggerRipple('left');
+        triggerHUD('seek-backward', '-10s');
+      } else {
+        // CENTER DOUBLE TAP -> Toggle Play/Pause!
+        handlePlayPause();
+      }
+    } else {
+      // SINGLE TAP CANDIDATE
+      lastTapRef.current = { x, y: touchStartRef.current.y, time: now };
+      if (singleTapTimeoutRef.current) clearTimeout(singleTapTimeoutRef.current);
+      singleTapTimeoutRef.current = setTimeout(() => {
+        triggerControlsVisibility();
+      }, 280);
+    }
+
+    touchStartRef.current = null;
+  };
+
+  // Mouse Double Click handler (Desktop/Browser support)
+  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (x > rect.width * 0.55) {
+      handleSeek(10);
+      triggerRipple('right');
+      triggerHUD('seek-forward', '+10s');
+    } else if (x < rect.width * 0.45) {
+      handleSeek(-10);
+      triggerRipple('left');
+      triggerHUD('seek-backward', '-10s');
+    } else {
+      handlePlayPause();
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      if (hudTimeoutRef.current) clearTimeout(hudTimeoutRef.current);
+      if (rippleTimeoutRef.current) clearTimeout(rippleTimeoutRef.current);
+      if (singleTapTimeoutRef.current) clearTimeout(singleTapTimeoutRef.current);
     };
   }, []);
 
@@ -318,11 +501,15 @@ export const SeriesDetail: React.FC = () => {
       {/* ========================================================================= */}
       <div className="sticky top-0 z-40 bg-[#090a0f] shadow-2xl">
         {isPlayingInline && currentPlayingEpisode ? (
-          /* 16:9 YouTube-Style Inline Video Player with AutoPlay */
+          /* 16:9 YouTube-Style Inline Video Player with AutoPlay & Custom Gestures */
           <div
             id="inline-video-container"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onDoubleClick={handleDoubleClick}
             onClick={triggerControlsVisibility}
-            className="relative w-full aspect-video bg-black overflow-hidden group select-none"
+            className="relative w-full aspect-video bg-black overflow-hidden group select-none touch-none"
           >
             <video
               ref={videoRef}
@@ -344,7 +531,16 @@ export const SeriesDetail: React.FC = () => {
                   setIsVideoPaused(true);
                 }
               }}
-              className="w-full h-full object-contain bg-black cursor-pointer"
+              style={{
+                filter: `brightness(${brightness})`
+              }}
+              className={`w-full h-full bg-black cursor-pointer transition-all duration-150 ${
+                aspectRatioMode === 'stretch'
+                  ? 'object-fill'
+                  : aspectRatioMode === 'crop'
+                  ? 'object-cover'
+                  : 'object-contain'
+              }`}
             >
               <source src={activeVideoUrl || currentPlayingEpisode.videoUrl} type="video/mp4" />
               <source src="https://media.w3.org/2010/05/sintel/trailer.mp4" type="video/mp4" />
@@ -367,6 +563,69 @@ export const SeriesDetail: React.FC = () => {
                 >
                   Reload Stream
                 </button>
+              </div>
+            )}
+
+            {/* Double Tap Left Side Feedback (-10s) */}
+            {ripple?.side === 'left' && (
+              <div className="absolute inset-y-0 left-0 w-5/12 flex items-center justify-center pointer-events-none z-30 bg-rose-500/10 rounded-r-full animate-pulse transition-all">
+                <div className="flex flex-col items-center justify-center bg-black/75 backdrop-blur-md text-white px-4 py-3 rounded-2xl border border-white/20 shadow-2xl">
+                  <RotateCcw className="w-8 h-8 text-rose-400 animate-spin" />
+                  <span className="font-black text-sm tracking-wide mt-1 font-mono text-rose-300">-10s</span>
+                </div>
+              </div>
+            )}
+
+            {/* Double Tap Right Side Feedback (+10s) */}
+            {ripple?.side === 'right' && (
+              <div className="absolute inset-y-0 right-0 w-5/12 flex items-center justify-center pointer-events-none z-30 bg-rose-500/10 rounded-l-full animate-pulse transition-all">
+                <div className="flex flex-col items-center justify-center bg-black/75 backdrop-blur-md text-white px-4 py-3 rounded-2xl border border-white/20 shadow-2xl">
+                  <RotateCw className="w-8 h-8 text-rose-400 animate-spin" />
+                  <span className="font-black text-sm tracking-wide mt-1 font-mono text-rose-300">+10s</span>
+                </div>
+              </div>
+            )}
+
+            {/* Center Gesture HUD Overlay (Volume, Brightness, Seek, Aspect Ratio) */}
+            {gestureHUD.type && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-35">
+                <div className="flex flex-col items-center gap-2 bg-black/85 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/20 text-white shadow-2xl min-w-[140px]">
+                  {gestureHUD.type === 'brightness' && <Sun className="w-8 h-8 text-amber-400" />}
+                  {gestureHUD.type === 'volume' && (isMuted || volume === 0 ? <VolumeX className="w-8 h-8 text-rose-500" /> : <Volume2 className="w-8 h-8 text-rose-500" />)}
+                  {gestureHUD.type === 'seek-backward' && <RotateCcw className="w-8 h-8 text-rose-400" />}
+                  {gestureHUD.type === 'seek-forward' && <RotateCw className="w-8 h-8 text-rose-400" />}
+                  {gestureHUD.type === 'aspect' && <Scaling className="w-8 h-8 text-sky-400" />}
+
+                  <span className="font-bold text-[11px] tracking-wider uppercase text-slate-300">
+                    {gestureHUD.type === 'brightness'
+                      ? 'Brightness'
+                      : gestureHUD.type === 'volume'
+                      ? 'Volume'
+                      : gestureHUD.type === 'aspect'
+                      ? 'Screen Fit'
+                      : 'Seek'}
+                  </span>
+
+                  <span className="font-mono text-sm font-extrabold text-white">
+                    {gestureHUD.value}
+                  </span>
+
+                  {(gestureHUD.type === 'volume' || gestureHUD.type === 'brightness') && (
+                    <div className="w-24 h-1.5 bg-white/20 rounded-full overflow-hidden mt-1">
+                      <div
+                        className={`h-full rounded-full transition-all duration-75 ${
+                          gestureHUD.type === 'brightness' ? 'bg-amber-400' : 'bg-rose-500'
+                        }`}
+                        style={{
+                          width:
+                            gestureHUD.type === 'brightness'
+                              ? `${Math.min(100, (brightness / 1.5) * 100)}%`
+                              : `${volume * 100}%`
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -393,6 +652,19 @@ export const SeriesDetail: React.FC = () => {
                 </button>
 
                 <div className="flex items-center gap-2">
+                  {/* Stretch / Crop / Fit Toggle Option */}
+                  <button
+                    type="button"
+                    onClick={cycleAspectRatio}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95 text-xs font-bold border border-white/15 transition shadow"
+                    title="Toggle Aspect Ratio (Fit / Stretch / Crop)"
+                  >
+                    <Scaling className="w-3.5 h-3.5 text-rose-400" />
+                    <span className="capitalize text-[11px] font-bold">
+                      {aspectRatioMode === 'fit' ? 'Fit' : aspectRatioMode === 'stretch' ? 'Stretch' : 'Crop'}
+                    </span>
+                  </button>
+
                   <span className="px-2 py-0.5 rounded bg-rose-600 font-bold text-[10px] uppercase tracking-wider text-white">
                     S{activeSeason.seasonNumber}:E{currentPlayingEpisode.episodeNumber}
                   </span>

@@ -11,7 +11,8 @@ import {
   PictureInPicture2,
   Maximize,
   Minimize,
-  SkipForward
+  SkipForward,
+  Scaling
 } from 'lucide-react';
 import { useAppStore } from '../store';
 
@@ -33,6 +34,13 @@ export const VideoPlayer: React.FC = () => {
   const [isPiPActive, setIsPiPActive] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [activeVideoUrl, setActiveVideoUrl] = useState(activePlayback?.episode.videoUrl || 'https://media.w3.org/2010/05/sintel/trailer.mp4');
+
+  // Aspect Ratio Mode: 'fit' (16:9 contain), 'stretch' (fill container), 'crop' (cover/zoom)
+  const [aspectRatioMode, setAspectRatioMode] = useState<'fit' | 'stretch' | 'crop'>('fit');
+
+  // Double-tap Seek Ripple state
+  const [ripple, setRipple] = useState<{ side: 'left' | 'right'; key: number } | null>(null);
+  const rippleTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (activePlayback?.episode.videoUrl) {
@@ -58,7 +66,7 @@ export const VideoPlayer: React.FC = () => {
 
   // Gesture indicators
   const [gestureHUD, setGestureHUD] = useState<{
-    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | null;
+    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'aspect' | null;
     value: number | string;
   }>({ type: null, value: 0 });
 
@@ -91,7 +99,7 @@ export const VideoPlayer: React.FC = () => {
   }, [isPlaying]);
 
   // Flash Gesture HUD
-  const triggerHUD = useCallback((type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward', value: number | string) => {
+  const triggerHUD = useCallback((type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'aspect', value: number | string) => {
     setGestureHUD({ type, value });
     if (hudTimeoutRef.current) {
       window.clearTimeout(hudTimeoutRef.current);
@@ -100,6 +108,27 @@ export const VideoPlayer: React.FC = () => {
       setGestureHUD({ type: null, value: 0 });
     }, 1200);
   }, []);
+
+  const triggerRipple = useCallback((side: 'left' | 'right') => {
+    setRipple({ side, key: Date.now() });
+    if (rippleTimeoutRef.current) {
+      window.clearTimeout(rippleTimeoutRef.current);
+    }
+    rippleTimeoutRef.current = window.setTimeout(() => {
+      setRipple(null);
+    }, 700);
+  }, []);
+
+  const cycleAspectRatio = useCallback((e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    haptic(40);
+    setAspectRatioMode((prev) => {
+      const next = prev === 'fit' ? 'stretch' : prev === 'stretch' ? 'crop' : 'fit';
+      const label = next === 'fit' ? 'Fit (16:9)' : next === 'stretch' ? 'Stretch (Fill)' : 'Crop (Zoom)';
+      triggerHUD('aspect', label);
+      return next;
+    });
+  }, [haptic, triggerHUD]);
 
   // Landscape Orientation Lock & Fullscreen Attempt
   useEffect(() => {
@@ -242,6 +271,7 @@ export const VideoPlayer: React.FC = () => {
     video.currentTime = target;
     setCurrentTime(target);
     triggerHUD(seconds > 0 ? 'seek-forward' : 'seek-backward', `${Math.abs(seconds)}s`);
+    triggerRipple(seconds > 0 ? 'right' : 'left');
   };
 
   // Touch Gestures: Left-half Brightness, Right-half Volume, Center Tap, Double-Tap Seek
@@ -310,13 +340,13 @@ export const VideoPlayer: React.FC = () => {
     const rect = e.currentTarget.getBoundingClientRect();
     const lastTap = lastTapRef.current;
 
-    if (lastTap && (now - lastTap.time) < 320 && Math.abs(x - lastTap.x) < 50) {
+    if (lastTap && (now - lastTap.time) < 320 && Math.abs(x - lastTap.x) < 55) {
       // Double tap recognized!
       lastTapRef.current = null; // reset
-      if (x < rect.width * 0.35) {
+      if (x < rect.width * 0.45) {
         // Left side double tap -> Seek backward 10s
         seekRelative(-10);
-      } else if (x > rect.width * 0.65) {
+      } else if (x > rect.width * 0.55) {
         // Right side double tap -> Seek forward 10s
         seekRelative(10);
       } else {
@@ -337,6 +367,19 @@ export const VideoPlayer: React.FC = () => {
     }
 
     touchStartRef.current = null;
+  };
+
+  // Mouse Double Click handler (Desktop support)
+  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (x > rect.width * 0.55) {
+      seekRelative(10);
+    } else if (x < rect.width * 0.45) {
+      seekRelative(-10);
+    } else {
+      togglePlayPause();
+    }
   };
 
   const togglePlayPause = () => {
@@ -380,6 +423,7 @@ export const VideoPlayer: React.FC = () => {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onDoubleClick={handleDoubleClick}
       onClick={resetControlsTimeout}
     >
       {/* HTML5 Video Element with Fallback Sources */}
@@ -387,7 +431,13 @@ export const VideoPlayer: React.FC = () => {
         ref={videoRef}
         key={activeVideoUrl}
         src={activeVideoUrl}
-        className="w-full h-full object-contain bg-black"
+        className={`w-full h-full cursor-pointer transition-all duration-150 ${
+          aspectRatioMode === 'stretch'
+            ? 'object-fill'
+            : aspectRatioMode === 'crop'
+            ? 'object-cover'
+            : 'object-contain'
+        } bg-black`}
         playsInline
         controls={false}
         onError={handleVideoError}
@@ -422,35 +472,50 @@ export const VideoPlayer: React.FC = () => {
         style={{ opacity: 1 - brightness }}
       />
 
-      {/* Gesture HUD (Center popup for Volume, Brightness & Seek) */}
+      {/* Gesture HUD (Center popup for Volume, Brightness, Seek & Aspect Ratio) */}
       {gestureHUD.type && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
-          <div className="flex flex-col items-center gap-2 bg-black/80 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/15 text-white shadow-2xl animate-pulse-fast">
+          <div className="flex flex-col items-center gap-2 bg-black/85 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/20 text-white shadow-2xl animate-pulse-fast min-w-[140px]">
             {gestureHUD.type === 'brightness' && <Sun className="w-8 h-8 text-amber-400" />}
-            {gestureHUD.type === 'volume' && <Volume2 className="w-8 h-8 text-rose-500" />}
+            {gestureHUD.type === 'volume' && (isMuted || volume === 0 ? <VolumeX className="w-8 h-8 text-rose-500" /> : <Volume2 className="w-8 h-8 text-rose-500" />)}
             {gestureHUD.type === 'seek-backward' && <RotateCcw className="w-8 h-8 text-rose-400" />}
             {gestureHUD.type === 'seek-forward' && <RotateCw className="w-8 h-8 text-rose-400" />}
-            <span className="font-bold text-base tracking-wide capitalize">
-              {gestureHUD.type === 'brightness' ? 'Brightness' : gestureHUD.type === 'volume' ? 'Volume' : 'Seek'}
+            {gestureHUD.type === 'aspect' && <Scaling className="w-8 h-8 text-sky-400" />}
+            <span className="font-bold text-xs tracking-wide uppercase text-slate-300">
+              {gestureHUD.type === 'brightness'
+                ? 'Brightness'
+                : gestureHUD.type === 'volume'
+                ? 'Volume'
+                : gestureHUD.type === 'aspect'
+                ? 'Screen Fit'
+                : 'Seek'}
             </span>
-            <span className="font-mono text-sm font-semibold text-slate-300">
+            <span className="font-mono text-sm font-bold text-white">
               {gestureHUD.value}
             </span>
           </div>
         </div>
       )}
 
-      {/* Double Tap Seek Zone Ripple Indicators */}
-      <div className="absolute inset-y-0 left-0 w-1/3 pointer-events-none flex items-center justify-start pl-6 opacity-0 active:opacity-100 transition-opacity">
-        <div className="flex items-center gap-1 text-white/50 text-xs font-bold">
-          <RotateCcw className="w-6 h-6" /> -10s
+      {/* Double Tap Left Side Ripple (-10s) */}
+      {ripple?.side === 'left' && (
+        <div className="absolute inset-y-0 left-0 w-5/12 flex items-center justify-center pointer-events-none z-30 bg-rose-500/10 rounded-r-full animate-pulse transition-all">
+          <div className="flex flex-col items-center justify-center bg-black/75 backdrop-blur-md text-white px-5 py-4 rounded-2xl border border-white/20 shadow-2xl">
+            <RotateCcw className="w-8 h-8 text-rose-400 animate-spin" />
+            <span className="font-black text-sm tracking-wide mt-1 font-mono text-rose-300">-10s</span>
+          </div>
         </div>
-      </div>
-      <div className="absolute inset-y-0 right-0 w-1/3 pointer-events-none flex items-center justify-end pr-6 opacity-0 active:opacity-100 transition-opacity">
-        <div className="flex items-center gap-1 text-white/50 text-xs font-bold">
-          +10s <RotateCw className="w-6 h-6" />
+      )}
+
+      {/* Double Tap Right Side Ripple (+10s) */}
+      {ripple?.side === 'right' && (
+        <div className="absolute inset-y-0 right-0 w-5/12 flex items-center justify-center pointer-events-none z-30 bg-rose-500/10 rounded-l-full animate-pulse transition-all">
+          <div className="flex flex-col items-center justify-center bg-black/75 backdrop-blur-md text-white px-5 py-4 rounded-2xl border border-white/20 shadow-2xl">
+            <RotateCw className="w-8 h-8 text-rose-400 animate-spin" />
+            <span className="font-black text-sm tracking-wide mt-1 font-mono text-rose-300">+10s</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Custom React UI Overlay Controls */}
       <div
@@ -484,6 +549,19 @@ export const VideoPlayer: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Stretch / Crop / Fit Option */}
+            <button
+              type="button"
+              onClick={cycleAspectRatio}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all active:scale-95 text-xs font-bold border border-white/10 shadow"
+              title="Aspect Ratio (Fit / Stretch / Crop)"
+            >
+              <Scaling className="w-4 h-4 text-rose-400" />
+              <span className="capitalize text-xs font-bold">
+                {aspectRatioMode === 'fit' ? 'Fit' : aspectRatioMode === 'stretch' ? 'Stretch' : 'Crop'}
+              </span>
+            </button>
+
             {/* PiP Button */}
             <button
               type="button"

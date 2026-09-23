@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { Home, Search, Download, User, AlertCircle, WifiOff } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { Home, Search, Download, User, AlertCircle, WifiOff, ChevronLeft } from 'lucide-react';
+import { App as CapApp } from '@capacitor/app';
 import { useAppStore } from '../store';
 import { TabType } from '../types';
 import { OfflineToast } from './OfflineToast';
@@ -27,64 +28,163 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const exitTimeoutRef = useRef<number | null>(null);
   const { isOnline } = useOnlineStatus();
 
-  // Browser History Interception
-  useEffect(() => {
-    // Push an initial history marker
-    window.history.pushState({ streamx: 'init' }, '');
+  // Edge-swipe gesture indicator state
+  const [edgeSwipeProgress, setEdgeSwipeProgress] = useState<number>(0);
 
-    const handlePopState = () => {
-      // 1. If video player is active, close video player
-      if (activePlayback) {
-        stopPlayback();
-        window.history.pushState({ streamx: 'playback-closed' }, '');
-        return;
-      }
+  // Centralized native back action
+  const handleBackAction = useCallback(() => {
+    // 0. Exit fullscreen if active
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+      haptic(30);
+      return true;
+    }
 
-      // 2. If Series detail is open, close it back to current tab
-      if (selectedSeriesId) {
-        setSelectedSeriesId(null);
-        window.history.pushState({ streamx: 'detail-closed' }, '');
-        return;
-      }
+    // 1. If standalone/modal video player is active, stop it
+    if (activePlayback) {
+      stopPlayback();
+      haptic(40);
+      window.history.pushState({ streamx: 'playback-closed' }, '');
+      return true;
+    }
 
-      // 3. If on other tab, switch back to Home
-      if (currentTab !== 'home') {
-        setCurrentTab('home');
-        window.history.pushState({ streamx: 'home-tab' }, '');
-        return;
-      }
+    // 2. If Series detail is open, close it back to current tab
+    if (selectedSeriesId) {
+      setSelectedSeriesId(null);
+      haptic(40);
+      window.history.pushState({ streamx: 'detail-closed' }, '');
+      return true;
+    }
 
-      // 4. If already on Home tab: intercept back button to show "Press back again to exit"
-      const now = Date.now();
-      if (now - lastBackPressRef.current < 2500) {
-        // Second back press within 2.5s -> let browser perform natural exit or close
-        setBackExitWarning(false);
-        haptic(80);
+    // 3. If on other tab, switch back to Home
+    if (currentTab !== 'home') {
+      setCurrentTab('home');
+      haptic(40);
+      window.history.pushState({ streamx: 'home-tab' }, '');
+      return true;
+    }
+
+    // 4. If already on Home tab: intercept back button to show "Press back again to exit"
+    const now = Date.now();
+    if (now - lastBackPressRef.current < 2500) {
+      setBackExitWarning(false);
+      haptic(80);
+      try {
+        CapApp.exitApp();
+      } catch {
         window.history.back();
-      } else {
-        // First back press -> intercept and warn
-        lastBackPressRef.current = now;
-        window.history.pushState({ streamx: 'home-warned' }, '');
-        setBackExitWarning(true);
-        haptic(50);
-
-        if (exitTimeoutRef.current) {
-          window.clearTimeout(exitTimeoutRef.current);
-        }
-        exitTimeoutRef.current = window.setTimeout(() => {
-          setBackExitWarning(false);
-        }, 2500);
       }
-    };
+    } else {
+      lastBackPressRef.current = now;
+      window.history.pushState({ streamx: 'home-warned' }, '');
+      setBackExitWarning(true);
+      haptic(50);
 
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
       if (exitTimeoutRef.current) {
         window.clearTimeout(exitTimeoutRef.current);
       }
-    };
+      exitTimeoutRef.current = window.setTimeout(() => {
+        setBackExitWarning(false);
+      }, 2500);
+    }
+    return false;
   }, [activePlayback, selectedSeriesId, currentTab, stopPlayback, setSelectedSeriesId, setCurrentTab, setBackExitWarning, haptic]);
+
+  // Native Capacitor hardware/system back button integration
+  useEffect(() => {
+    let removeListener: (() => void) | null = null;
+    CapApp.addListener('backButton', () => {
+      handleBackAction();
+    })
+      .then((handle) => {
+        removeListener = () => handle.remove();
+      })
+      .catch(() => {
+        // Not running in Capacitor native runtime
+      });
+
+    return () => {
+      if (removeListener) removeListener();
+    };
+  }, [handleBackAction]);
+
+  // Browser History (Popstate) Interception
+  useEffect(() => {
+    window.history.pushState({ streamx: 'init' }, '');
+    const onPopState = () => {
+      handleBackAction();
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [handleBackAction]);
+
+  // Native Edge Swipe Back Gesture (iOS & Android Style)
+  useEffect(() => {
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      // Swipe back initiates when touching within 36px of screen left bezel
+      if (touch.clientX <= 36) {
+        startX = touch.clientX;
+        startY = touch.clientY;
+        tracking = true;
+      } else {
+        tracking = false;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!tracking || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - startX;
+      const deltaY = Math.abs(touch.clientY - startY);
+
+      // If user is clearly scrolling vertically, cancel edge swipe
+      if (deltaY > 25 && deltaY > deltaX) {
+        tracking = false;
+        setEdgeSwipeProgress(0);
+        return;
+      }
+
+      if (deltaX > 10) {
+        const progress = Math.min(1, deltaX / 90);
+        setEdgeSwipeProgress(progress);
+      } else {
+        setEdgeSwipeProgress(0);
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!tracking) return;
+      tracking = false;
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - startX;
+      const deltaY = Math.abs(touch.clientY - startY);
+
+      setEdgeSwipeProgress(0);
+
+      // Trigger back if swiped right >= 65px with horizontal velocity
+      if (deltaX >= 65 && deltaX > deltaY * 1.2) {
+        handleBackAction();
+      }
+    };
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [handleBackAction]);
 
   const navItems: { tab: TabType; label: string; icon: typeof Home }[] = [
     { tab: 'home', label: 'Home', icon: Home },
@@ -94,7 +194,22 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   ];
 
   return (
-    <div className="relative min-h-screen bg-[#090a0f] text-slate-100 flex flex-col font-sans selection:bg-rose-500 selection:text-white">
+    <div className="relative min-h-[100dvh] bg-[#090a0f] text-slate-100 flex flex-col font-sans selection:bg-rose-500 selection:text-white">
+      {/* Native Edge Swipe Back Visual Indicator */}
+      {edgeSwipeProgress > 0 && (
+        <div
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-50 pointer-events-none transition-transform duration-75 ease-out"
+          style={{
+            transform: `translate3d(${edgeSwipeProgress * 28}px, -50%, 0)`,
+            opacity: Math.min(1, edgeSwipeProgress * 1.5)
+          }}
+        >
+          <div className="w-10 h-10 rounded-full bg-rose-600/90 backdrop-blur-md shadow-lg shadow-rose-600/40 flex items-center justify-center text-white border border-rose-400/50">
+            <ChevronLeft className="w-6 h-6 animate-pulse" />
+          </div>
+        </div>
+      )}
+
       {/* Top Mobile Status Header */}
       <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-[#090a0f]/90 backdrop-blur-md border-b border-slate-800/60 safe-pt">
         <div 
