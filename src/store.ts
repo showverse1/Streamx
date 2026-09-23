@@ -1,6 +1,16 @@
 import { create } from 'zustand';
 import { Series, Season, Episode, WatchHistoryItem, DownloadItem, TabType, UserProfile } from './types';
-import { fetchSeriesData } from './firebase';
+import {
+  fetchSeriesData,
+  loginWithFirebase,
+  registerWithFirebase,
+  loginWithGoogleFirebase,
+  logoutFirebase,
+  saveWatchHistoryToFirestore,
+  fetchUserWatchHistoryFromFirestore,
+  clearUserWatchHistoryInFirestore,
+  subscribeToAuthState
+} from './firebase';
 import { storage } from './storage';
 
 export interface ActivePlayback {
@@ -24,7 +34,9 @@ interface AppState {
   setIsAuthModalOpen: (open: boolean) => void;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
+  initAuthListener: () => () => void;
 
   // Series Data
   series: Series[];
@@ -84,31 +96,71 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isAuthModalOpen: open });
   },
 
+  initAuthListener: () => {
+    return subscribeToAuthState(async (fbUser) => {
+      if (fbUser) {
+        const profile: UserProfile = {
+          uid: fbUser.uid,
+          email: fbUser.email || '',
+          name: fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'Member'),
+          isLoggedIn: true,
+          joinedDate: Date.now()
+        };
+        storage.saveUser(profile);
+        set({ user: profile });
+
+        // Pull cloud watch history from Firestore
+        try {
+          const cloudHistory = await fetchUserWatchHistoryFromFirestore(fbUser.uid);
+          if (cloudHistory && cloudHistory.length > 0) {
+            cloudHistory.forEach((item) => storage.saveWatchHistoryItem(item));
+            set({ watchHistory: storage.getWatchHistory() });
+          }
+        } catch (err) {
+          console.warn('Initial cloud watch history sync notice:', err);
+        }
+      }
+    });
+  },
+
   login: async (email: string, password: string) => {
     get().haptic(45);
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
       return { success: false, error: 'Please enter a valid email address.' };
     }
-    if (!password || password.length < 4) {
-      return { success: false, error: 'Password must be at least 4 characters.' };
+    if (!password || password.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters.' };
     }
 
-    // Determine display name from email or existing user
-    const existing = storage.getUser();
-    const displayName = (existing && existing.email === cleanEmail && existing.name)
-      ? existing.name
-      : cleanEmail.split('@')[0];
+    // Authenticate with Firebase Auth
+    const res = await loginWithFirebase(cleanEmail, password);
+    if (!res.success || !res.user) {
+      // Return user-friendly error
+      const err = res.error || '';
+      if (err.includes('user-not-found') || err.includes('invalid-credential')) {
+        return { success: false, error: 'Invalid email or password. Please try again or create an account.' };
+      }
+      return { success: false, error: res.error || 'Authentication failed.' };
+    }
 
-    const profile: UserProfile = {
-      email: cleanEmail,
-      name: displayName.charAt(0).toUpperCase() + displayName.slice(1),
-      isLoggedIn: true,
-      joinedDate: existing?.joinedDate || Date.now()
-    };
-
+    const profile = res.user;
     storage.saveUser(profile);
     set({ user: profile, isAuthModalOpen: false });
+
+    // Sync cloud watch history from Firestore
+    if (profile.uid) {
+      try {
+        const cloudHistory = await fetchUserWatchHistoryFromFirestore(profile.uid);
+        if (cloudHistory && cloudHistory.length > 0) {
+          cloudHistory.forEach((item) => storage.saveWatchHistoryItem(item));
+          set({ watchHistory: storage.getWatchHistory() });
+        }
+      } catch (err) {
+        console.warn('Post-login cloud history sync notice:', err);
+      }
+    }
+
     return { success: true };
   },
 
@@ -118,25 +170,62 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!cleanEmail || !cleanEmail.includes('@')) {
       return { success: false, error: 'Please enter a valid email address.' };
     }
-    if (!password || password.length < 4) {
-      return { success: false, error: 'Password must be at least 4 characters.' };
+    if (!password || password.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters.' };
     }
 
-    const displayName = name?.trim() || cleanEmail.split('@')[0];
-    const profile: UserProfile = {
-      email: cleanEmail,
-      name: displayName.charAt(0).toUpperCase() + displayName.slice(1),
-      isLoggedIn: true,
-      joinedDate: Date.now()
-    };
+    // Register with Firebase Auth & Firestore
+    const res = await registerWithFirebase(cleanEmail, password, name);
+    if (!res.success || !res.user) {
+      const err = res.error || '';
+      if (err.includes('email-already-in-use')) {
+        return { success: false, error: 'This email is already registered. Please sign in instead.' };
+      }
+      return { success: false, error: res.error || 'Registration failed.' };
+    }
 
+    const profile = res.user;
     storage.saveUser(profile);
     set({ user: profile, isAuthModalOpen: false });
+
+    // Sync existing local watch history to Firestore for newly created user
+    if (profile.uid) {
+      const existingHistory = storage.getWatchHistory();
+      for (const item of existingHistory.slice(0, 10)) {
+        saveWatchHistoryToFirestore(profile.uid, item).catch(() => {});
+      }
+    }
+
+    return { success: true };
+  },
+
+  loginWithGoogle: async () => {
+    get().haptic(45);
+    const res = await loginWithGoogleFirebase();
+    if (!res.success || !res.user) {
+      return { success: false, error: res.error || 'Google sign-in could not be completed.' };
+    }
+    const profile = res.user;
+    storage.saveUser(profile);
+    set({ user: profile, isAuthModalOpen: false });
+
+    if (profile.uid) {
+      try {
+        const cloudHistory = await fetchUserWatchHistoryFromFirestore(profile.uid);
+        if (cloudHistory && cloudHistory.length > 0) {
+          cloudHistory.forEach((item) => storage.saveWatchHistoryItem(item));
+          set({ watchHistory: storage.getWatchHistory() });
+        }
+      } catch (err) {
+        console.warn('Google post-login history fetch warning:', err);
+      }
+    }
     return { success: true };
   },
 
   logout: () => {
     get().haptic(50);
+    logoutFirebase().catch(() => {});
     storage.clearUser();
     set({ user: null });
   },
@@ -231,12 +320,27 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const updated = storage.saveWatchHistoryItem(historyItem);
     set({ watchHistory: updated });
+
+    // Sync to Firestore if authenticated
+    const currentUser = get().user;
+    if (currentUser?.uid) {
+      saveWatchHistoryToFirestore(currentUser.uid, historyItem).catch((err) => {
+        console.warn('Firestore history save warning:', err);
+      });
+    }
   },
 
   clearWatchHistory: () => {
     get().haptic(50);
     storage.clearWatchHistory();
     set({ watchHistory: [] });
+
+    const currentUser = get().user;
+    if (currentUser?.uid) {
+      clearUserWatchHistoryInFirestore(currentUser.uid).catch((err) => {
+        console.warn('Firestore history clear warning:', err);
+      });
+    }
   },
 
   addDownload: (series: Series, seasonNum: number, episode: Episode) => {
@@ -286,6 +390,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     storage.clearWatchHistory();
     storage.clearRecentSearches();
     set({ watchHistory: [], recentSearches: [] });
+
+    const currentUser = get().user;
+    if (currentUser?.uid) {
+      clearUserWatchHistoryInFirestore(currentUser.uid).catch((err) => {
+        console.warn('Firestore clear all history warning:', err);
+      });
+    }
   },
 
   haptic: (duration = 50) => {

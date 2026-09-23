@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "users": {
+      "description": "User profile records indexed by auth UID",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "photoURL": { "type": "string", "description": "User avatar URL" },
+        "createdAt": { "type": "number", "description": "Creation timestamp in milliseconds" },
+        "updatedAt": { "type": "number", "description": "Last updated timestamp in milliseconds" },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "User role" }
+      },
+      "required": ["userId", "email"]
+    },
+    "series": {
+      "description": "Streaming video series catalog",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Series title" },
+        "thumbnailUrl": { "type": "string", "description": "Cover thumbnail image URL" },
+        "bannerUrl": { "type": "string", "description": "Wide landscape banner URL" },
+        "category": { "type": "string", "description": "Primary genre category" },
+        "rating": { "type": "string", "description": "Viewer rating e.g. 9.8" },
+        "year": { "type": "number", "description": "Release year" },
+        "description": { "type": "string", "description": "Series synopsis" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags/genres" },
+        "uploadTimestamp": { "type": "number", "description": "Upload timestamp in ms" },
+        "seasons": { "type": "array", "description": "List of seasons and episodes" }
+      },
+      "required": ["title", "category", "seasons"]
+    },
+    "watchHistory": {
+      "description": "Per-user episode watch progress and resume points",
+      "type": "object",
+      "owner_field": "userId",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "seriesId": { "type": "string", "description": "Series identifier" },
+        "seasonNum": { "type": "number", "description": "Season index" },
+        "episodeNum": { "type": "number", "description": "Episode index" },
+        "timestamp": { "type": "number", "description": "Watched timestamp in ms" },
+        "seriesTitle": { "type": "string", "description": "Series title" },
+        "seriesThumbnail": { "type": "string", "description": "Thumbnail image URL" },
+        "episodeTitle": { "type": "string", "description": "Episode title" },
+        "progressSeconds": { "type": "number", "description": "Playback progress in seconds" },
+        "durationSeconds": { "type": "number", "description": "Total duration in seconds" }
+      },
+      "required": ["userId", "seriesId", "seasonNum", "episodeNum", "timestamp"]
+    },
+    "bookmarks": {
+      "description": "User saved watchlist series bookmarks",
+      "type": "object",
+      "owner_field": "userId",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "seriesId": { "type": "string", "description": "Saved series ID" },
+        "seriesTitle": { "type": "string", "description": "Series title" },
+        "seriesThumbnail": { "type": "string", "description": "Series thumbnail URL" },
+        "addedAt": { "type": "number", "description": "Saved timestamp in ms" }
+      },
+      "required": ["userId", "seriesId", "addedAt"]
+    }
+  }
+}

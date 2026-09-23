@@ -201,6 +201,10 @@ export const Profile: React.FC = () => {
                   <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
                     VIP Member
                   </span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Firebase Synced
+                  </span>
                   <span className="text-[10px] text-slate-400">
                     {watchHistory.length} watched
                   </span>
@@ -259,7 +263,7 @@ export const Profile: React.FC = () => {
           <div className="flex items-center gap-2">
             <History className="w-4 h-4 text-rose-500" />
             <h3 className="font-extrabold text-sm text-white tracking-tight">
-              Watch History (LocalStorage)
+              Watch History {user?.uid ? '(Firestore Cloud Synced)' : '(LocalStorage)'}
             </h3>
           </div>
 
@@ -398,6 +402,14 @@ export const Profile: React.FC = () => {
         </h3>
 
         <div className="space-y-2 text-xs text-slate-300">
+          <div className="flex items-center justify-between py-1.5 border-b border-slate-800/50">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>Firebase Cloud DB & Auth</span>
+            </div>
+            <span className="font-mono text-emerald-400 text-[11px]">Connected</span>
+          </div>
+
           <div className="flex items-center justify-between py-1.5 border-b border-slate-800/50">
             <div className="flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-rose-500" />

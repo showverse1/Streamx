@@ -14,12 +14,17 @@ export default function App() {
     currentTab,
     selectedSeriesId,
     activePlayback,
-    loadSeries
+    loadSeries,
+    initAuthListener
   } = useAppStore();
 
   useEffect(() => {
     loadSeries();
-  }, [loadSeries]);
+    const unsubscribe = initAuthListener();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [loadSeries, initAuthListener]);
 
   const renderActiveView = () => {
     // 1. If a series is selected for detail view

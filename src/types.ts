@@ -57,11 +57,13 @@ export interface DownloadItem {
 }
 
 export interface UserProfile {
+  uid?: string;
   email: string;
   name: string;
   isLoggedIn: boolean;
   avatarUrl?: string;
   joinedDate: number;
+  role?: string;
 }
 
 export type TabType = 'home' | 'search' | 'downloads' | 'me';
