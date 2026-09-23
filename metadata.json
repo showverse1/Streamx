@@ -1,0 +1,6 @@
+{
+  "name": "StreamX-Web",
+  "description": "StreamX-Web - Production-Ready Mobile Web Video Streaming PWA with Custom Gestures, Picture-in-Picture & Watch History",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
