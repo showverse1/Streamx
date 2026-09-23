@@ -269,6 +269,32 @@ export const SeriesDetail: React.FC = () => {
     }
   };
 
+  // Auto-hide controls timer (Strict 3 seconds of inactivity)
+  const startControlsHideTimer = () => {
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    controlsTimeoutRef.current = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+  };
+
+  const showAndScheduleHideControls = () => {
+    setShowControls(true);
+    startControlsHideTimer();
+  };
+
+  const toggleControls = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) e.stopPropagation();
+    setShowControls((prev) => {
+      const next = !prev;
+      if (next) {
+        startControlsHideTimer();
+      } else if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+      return next;
+    });
+  };
+
   const handlePlayPause = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     haptic(40);
@@ -280,6 +306,7 @@ export const SeriesDetail: React.FC = () => {
       videoRef.current.pause();
       setIsVideoPaused(true);
     }
+    startControlsHideTimer();
   };
 
   const triggerHUD = (
@@ -304,6 +331,7 @@ export const SeriesDetail: React.FC = () => {
   const cycleAspectRatio = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     haptic(40);
+    startControlsHideTimer();
     setAspectRatioMode((prev) => {
       const next = prev === 'fit' ? 'stretch' : prev === 'stretch' ? 'crop' : 'fit';
       const label = next === 'fit' ? 'Fit (16:9)' : next === 'stretch' ? 'Stretch (Fill)' : 'Crop (Zoom)';
@@ -315,6 +343,7 @@ export const SeriesDetail: React.FC = () => {
   const handleSeek = (seconds: number) => {
     if (!videoRef.current) return;
     haptic(30);
+    startControlsHideTimer();
     const target = Math.max(0, Math.min(videoRef.current.currentTime + seconds, duration));
     videoRef.current.currentTime = target;
     setCurrentTime(target);
@@ -322,6 +351,7 @@ export const SeriesDetail: React.FC = () => {
 
   const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!videoRef.current) return;
+    startControlsHideTimer();
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const percentage = clickX / rect.width;
@@ -333,34 +363,99 @@ export const SeriesDetail: React.FC = () => {
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
     haptic(30);
+    startControlsHideTimer();
     if (!videoRef.current) return;
     videoRef.current.muted = !isMuted;
     setIsMuted(!isMuted);
   };
 
-  const toggleFullscreen = (e: React.MouseEvent) => {
+  // Fullscreen change & Orientation sync
+  useEffect(() => {
+    const handleFSChange = () => {
+      const isFS = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      setIsFullscreen(isFS);
+      if (!isFS) {
+        try {
+          const screenAny = screen as unknown as { orientation?: { unlock?: () => void } };
+          if (screenAny.orientation && typeof screenAny.orientation.unlock === 'function') {
+            screenAny.orientation.unlock();
+          }
+        } catch (_) {}
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFSChange);
+    document.addEventListener('webkitfullscreenchange', handleFSChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFSChange);
+      document.removeEventListener('webkitfullscreenchange', handleFSChange);
+      try {
+        const screenAny = screen as unknown as { orientation?: { unlock?: () => void } };
+        if (screenAny.orientation && typeof screenAny.orientation.unlock === 'function') {
+          screenAny.orientation.unlock();
+        }
+      } catch (_) {}
+    };
+  }, []);
+
+  const toggleFullscreen = async (e: React.MouseEvent) => {
     e.stopPropagation();
     haptic(50);
     const container = document.getElementById('inline-video-container');
     if (!container) return;
 
-    if (!document.fullscreenElement) {
-      container.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
+    const isCurrentFS = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+
+    if (!isCurrentFS) {
+      const req = container.requestFullscreen || (container as any).webkitRequestFullscreen;
+      if (req) {
+        try {
+          await req.call(container);
+          setIsFullscreen(true);
+        } catch (_) {
+          setIsFullscreen(true);
+        }
+      } else {
+        setIsFullscreen(true);
+      }
+
+      // Automatically force landscape screen orientation on mobile devices
+      try {
+        const screenAny = screen as unknown as { orientation?: { lock?: (orient: string) => Promise<void> } };
+        if (screenAny.orientation && typeof screenAny.orientation.lock === 'function') {
+          await screenAny.orientation.lock('landscape').catch(() => {});
+        }
+      } catch (_) {}
     } else {
-      document.exitFullscreen?.().then(() => setIsFullscreen(false)).catch(() => {});
+      const exit = document.exitFullscreen || (document as any).webkitExitFullscreen;
+      if (exit) {
+        try {
+          await exit.call(document);
+          setIsFullscreen(false);
+        } catch (_) {
+          setIsFullscreen(false);
+        }
+      } else {
+        setIsFullscreen(false);
+      }
+
+      // Unlock back to portrait orientation
+      try {
+        const screenAny = screen as unknown as { orientation?: { unlock?: () => void } };
+        if (screenAny.orientation && typeof screenAny.orientation.unlock === 'function') {
+          screenAny.orientation.unlock();
+        }
+      } catch (_) {}
     }
+    startControlsHideTimer();
   };
 
-  // Auto-hide controls timer
-  const triggerControlsVisibility = () => {
-    setShowControls(true);
-    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-    controlsTimeoutRef.current = setTimeout(() => {
-      if (!isVideoPaused) {
-        setShowControls(false);
-      }
-    }, 3500);
-  };
+  // On episode change or series mount, show controls and auto-hide after 3 seconds
+  useEffect(() => {
+    showAndScheduleHideControls();
+    return () => {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    };
+  }, [currentPlayingEpisode?.id]);
 
   // Touch handlers for video player screen gestures (Double-tap & swipe controls)
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -453,8 +548,8 @@ export const SeriesDetail: React.FC = () => {
       lastTapRef.current = { x, y: touchStartRef.current.y, time: now };
       if (singleTapTimeoutRef.current) clearTimeout(singleTapTimeoutRef.current);
       singleTapTimeoutRef.current = setTimeout(() => {
-        triggerControlsVisibility();
-      }, 280);
+        toggleControls();
+      }, 250);
     }
 
     touchStartRef.current = null;
@@ -508,8 +603,12 @@ export const SeriesDetail: React.FC = () => {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onDoubleClick={handleDoubleClick}
-            onClick={triggerControlsVisibility}
-            className="relative w-full aspect-video bg-black overflow-hidden group select-none touch-none"
+            onClick={toggleControls}
+            className={`relative w-full overflow-hidden group select-none touch-none transition-all duration-300 ${
+              isFullscreen
+                ? 'fixed inset-0 z-[100] w-screen h-screen bg-black flex items-center justify-center'
+                : 'aspect-video bg-black'
+            }`}
           >
             <video
               ref={videoRef}
@@ -629,10 +728,17 @@ export const SeriesDetail: React.FC = () => {
               </div>
             )}
 
-            {/* Video Controls Overlay */}
+            {/* Video Controls Overlay - Auto-hides after 3 seconds of inactivity */}
             <div
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  toggleControls(e);
+                } else {
+                  startControlsHideTimer();
+                }
+              }}
               className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/70 flex flex-col justify-between p-3 transition-opacity duration-300 ${
-                showControls || isVideoPaused ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
             >
               {/* Top Controls Bar */}

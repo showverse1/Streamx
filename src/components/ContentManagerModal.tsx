@@ -96,6 +96,7 @@ const SAMPLE_BULK_JSON: Series[] = [
 
 export const ContentManagerModal: React.FC = () => {
   const {
+    user,
     isContentManagerOpen,
     setIsContentManagerOpen,
     series,
@@ -144,7 +145,9 @@ export const ContentManagerModal: React.FC = () => {
     }
   ]);
 
-  if (!isContentManagerOpen) return null;
+  // Strictly only show if open and user is vk8260428@gmail.com
+  const isAdmin = user?.email?.toLowerCase().trim() === 'vk8260428@gmail.com';
+  if (!isContentManagerOpen || !isAdmin) return null;
 
   const handleCopyTemplate = () => {
     haptic(30);

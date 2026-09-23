@@ -293,7 +293,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   isContentManagerOpen: false,
-  setIsContentManagerOpen: (open: boolean) => set({ isContentManagerOpen: open }),
+  setIsContentManagerOpen: (open: boolean) => {
+    if (open) {
+      const email = get().user?.email?.toLowerCase().trim();
+      if (email !== 'vk8260428@gmail.com') {
+        return;
+      }
+    }
+    set({ isContentManagerOpen: open });
+  },
 
   addSeries: async (series: Series) => {
     get().haptic(40);

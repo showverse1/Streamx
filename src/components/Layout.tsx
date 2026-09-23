@@ -211,7 +211,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       )}
 
       {/* Top Mobile Status Header */}
-      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-[#090a0f]/90 backdrop-blur-md border-b border-slate-800/60 safe-pt">
+      <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-[#07090e]/95 backdrop-blur-xl border-b border-rose-500/20 safe-pt shadow-lg shadow-black/60 gpu-smooth">
         <div 
           onClick={() => {
             haptic(40);
@@ -219,11 +219,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           }}
           className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition-transform"
         >
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 via-red-600 to-amber-500 flex items-center justify-center font-black text-white text-base shadow-lg shadow-rose-600/30">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500 via-rose-600 to-amber-500 flex items-center justify-center font-black text-white text-base shadow-[0_0_15px_rgba(244,63,94,0.6)] border border-rose-400/40">
             X
           </div>
           <div>
-            <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+            <span className="font-black text-lg tracking-tight bg-gradient-to-r from-white via-rose-100 to-rose-400 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(244,63,94,0.4)]">
               StreamX
             </span>
           </div>
@@ -232,7 +232,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="flex items-center gap-2">
           <PWAInstallButton />
           {!isOnline && (
-            <div className="flex items-center gap-1.5 bg-amber-950/80 border border-amber-500/50 rounded-full px-2.5 py-1 text-xs text-amber-300 shadow-sm animate-pulse">
+            <div className="flex items-center gap-1.5 bg-amber-950/80 border border-amber-500/50 rounded-full px-2.5 py-1 text-xs text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)] animate-pulse">
               <WifiOff className="w-3 h-3 text-amber-400" />
               <span className="font-semibold text-[10px] tracking-wide">OFFLINE</span>
             </div>
@@ -243,23 +243,23 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Offline Toast Notification */}
       <OfflineToast />
 
-      {/* Main Page Content */}
-      <main className="flex-1 pb-24">
+      {/* Main Page Content with 120Hz smooth acceleration */}
+      <main className="flex-1 pb-24 gpu-smooth">
         {children}
       </main>
 
       {/* "Press back again to exit" Floating Alert */}
       {backExitWarning && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 animate-bounce">
-          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-slate-900/95 border border-rose-500/50 text-slate-100 text-xs font-semibold shadow-2xl backdrop-blur-lg">
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-slate-900/95 border border-rose-500/60 text-slate-100 text-xs font-semibold shadow-[0_0_20px_rgba(244,63,94,0.4)] backdrop-blur-lg">
             <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
             <span>Press back again to exit</span>
           </div>
         </div>
       )}
 
-      {/* Fixed Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0d0f17]/95 backdrop-blur-xl border-t border-slate-800/80 safe-pb">
+      {/* Fixed Bottom Navigation Bar - Electric Neon Aesthetic */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#07090e]/95 backdrop-blur-2xl border-t border-rose-500/20 safe-pb shadow-[0_-5px_25px_rgba(0,0,0,0.8)] gpu-smooth">
         <div className="max-w-md mx-auto grid grid-cols-4 px-2 py-1.5">
           {navItems.map(({ tab, label, icon: Icon }) => {
             const isActive = currentTab === tab && !selectedSeriesId;
@@ -268,17 +268,32 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 key={tab}
                 type="button"
                 onClick={() => setCurrentTab(tab)}
-                className={`relative flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-200 active:scale-90 ${
-                  isActive ? 'text-rose-500 font-semibold' : 'text-slate-400 hover:text-slate-200'
+                className={`relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all duration-200 active:scale-90 ${
+                  isActive ? 'text-rose-400 font-bold' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
+                {isActive && (
+                  <span className="absolute inset-0 rounded-xl bg-gradient-to-t from-rose-500/15 to-transparent pointer-events-none" />
+                )}
                 <div className="relative">
-                  <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? 'scale-110 stroke-[2.5]' : 'stroke-[1.8]'}`} />
+                  <Icon
+                    className={`w-5 h-5 transition-all duration-200 ${
+                      isActive
+                        ? 'scale-110 stroke-[2.5] text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]'
+                        : 'stroke-[1.8]'
+                    }`}
+                  />
                   {isActive && (
-                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-rose-500" />
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,1)]" />
                   )}
                 </div>
-                <span className={`text-[11px] mt-1 tracking-tight ${isActive ? 'text-rose-500 font-bold' : 'text-slate-400'}`}>
+                <span
+                  className={`text-[11px] mt-1 tracking-tight ${
+                    isActive
+                      ? 'text-rose-400 font-extrabold drop-shadow-[0_0_6px_rgba(244,63,94,0.6)]'
+                      : 'text-slate-400'
+                  }`}
+                >
                   {label}
                 </span>
               </button>

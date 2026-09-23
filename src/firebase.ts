@@ -74,7 +74,20 @@ export async function clearAllSeriesInFirestore(): Promise<void> {
   }
 }
 
-// Fetch Series from Firestore
+const DUMMY_AI_IDS = new Set([
+  'cyber-ronin',
+  'seoul-midnight-cafe',
+  'chronos-vanguard',
+  'shadow-alchemist',
+  'gangnam-noir',
+  'orbital-strike',
+  'tokyo-drift-ghost',
+  'jeju-island-blue',
+  'sample-movie-1',
+  'sample-series-1'
+]);
+
+// Fetch Series from Firestore (Strictly only real uploaded content)
 export async function fetchSeriesData(): Promise<Series[]> {
   try {
     const seriesCol = collection(db, 'series');
@@ -82,9 +95,23 @@ export async function fetchSeriesData(): Promise<Series[]> {
     const snapshot = await getDocs(q);
     if (!snapshot.empty) {
       const list: Series[] = [];
+      const toDeleteDocs: string[] = [];
       snapshot.forEach((docSnap) => {
-        list.push({ id: docSnap.id, ...(docSnap.data() as Omit<Series, 'id'>) });
+        const id = docSnap.id;
+        if (DUMMY_AI_IDS.has(id)) {
+          toDeleteDocs.push(id);
+        } else {
+          list.push({ id, ...(docSnap.data() as Omit<Series, 'id'>) });
+        }
       });
+
+      // Background cleanup of any old AI dummy records
+      if (toDeleteDocs.length > 0) {
+        toDeleteDocs.forEach((id) => {
+          deleteDoc(doc(db, 'series', id)).catch(() => {});
+        });
+      }
+
       return list;
     }
   } catch (error) {

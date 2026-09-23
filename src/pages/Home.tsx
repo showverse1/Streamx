@@ -5,6 +5,7 @@ import { Series } from '../types';
 
 export const Home: React.FC = () => {
   const {
+    user,
     series,
     isLoading,
     loadSeries,
@@ -84,28 +85,33 @@ export const Home: React.FC = () => {
   }
 
   if (series.length === 0) {
+    const isAdmin = user?.email?.toLowerCase().trim() === 'vk8260428@gmail.com';
     return (
       <div className="p-6 text-center space-y-4 max-w-sm mx-auto pt-16 animate-in fade-in duration-200">
         <div className="w-16 h-16 rounded-3xl bg-rose-600/20 border border-rose-500/30 flex items-center justify-center mx-auto text-rose-500 shadow-xl shadow-rose-600/10">
           <Film className="w-8 h-8" />
         </div>
         <div>
-          <h2 className="text-lg font-black text-white">Catalog is Clean</h2>
+          <h2 className="text-lg font-black text-white">StreamX Cinema</h2>
           <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            AI videos have been removed. You can now add your own movies, web series, episodes, thumbnails, and video streaming links!
+            {isAdmin
+              ? 'Catalog is clean. Ready to upload movies, web series, episodes, and video streaming links.'
+              : 'Fresh cinema titles and web series are dropping soon. Stay tuned!'}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            haptic(40);
-            setIsContentManagerOpen(true);
-          }}
-          className="w-full py-3 px-5 rounded-2xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-xs shadow-xl shadow-rose-600/30 transition-all active:scale-95 flex items-center justify-center gap-2"
-        >
-          <Sparkles className="w-4 h-4 text-amber-200" />
-          <span>Upload Movies & Series (Bulk Import)</span>
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => {
+              haptic(40);
+              setIsContentManagerOpen(true);
+            }}
+            className="w-full py-3 px-5 rounded-2xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-xs shadow-xl shadow-rose-600/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+          >
+            <Sparkles className="w-4 h-4 text-amber-200" />
+            <span>Upload Movies & Series (Bulk Import)</span>
+          </button>
+        )}
       </div>
     );
   }
@@ -132,7 +138,7 @@ export const Home: React.FC = () => {
             <div
               key={item.id}
               onClick={() => handleSeriesClick(item)}
-              className="relative shrink-0 w-[82vw] sm:w-80 h-56 rounded-2xl overflow-hidden bg-slate-900 border border-slate-800/80 snap-start shadow-xl shadow-black/40 cursor-pointer group active:scale-[0.98] transition-transform"
+              className="relative shrink-0 w-[82vw] sm:w-80 h-56 rounded-2xl overflow-hidden bg-slate-900 border border-rose-500/20 hover:border-rose-500/60 snap-start shadow-[0_0_20px_rgba(0,0,0,0.8)] hover:shadow-[0_0_25px_rgba(244,63,94,0.3)] cursor-pointer group active:scale-[0.98] transition-all duration-300"
             >
               {/* Image & Gradient Backdrop */}
               <img
@@ -145,11 +151,11 @@ export const Home: React.FC = () => {
 
               {/* Badges & Meta */}
               <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                <span className="px-2 py-0.5 rounded-md bg-rose-600/90 backdrop-blur-md text-[10px] font-black uppercase tracking-wider text-white shadow-md">
+                <span className="px-2 py-0.5 rounded-md bg-rose-600/90 backdrop-blur-md text-[10px] font-black uppercase tracking-wider text-white shadow-[0_0_10px_rgba(244,63,94,0.6)] border border-rose-400/40">
                   {item.category}
                 </span>
                 {item.rating && (
-                  <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-md text-[10px] font-bold text-amber-300 border border-amber-400/20">
+                  <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md text-[10px] font-bold text-amber-300 border border-amber-400/30 shadow-[0_0_8px_rgba(245,158,11,0.3)]">
                     <Star className="w-2.5 h-2.5 fill-amber-300" />
                     {item.rating}
                   </span>
@@ -159,14 +165,14 @@ export const Home: React.FC = () => {
               {/* Title & Quick Play */}
               <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-extrabold text-white text-base tracking-tight leading-tight truncate drop-shadow">
+                  <h3 className="font-extrabold text-white text-base tracking-tight leading-tight truncate drop-shadow-[0_0_8px_rgba(0,0,0,0.9)]">
                     {item.title}
                   </h3>
                   <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-300">
                     <span>{item.seasons.length} {item.seasons.length > 1 ? 'Seasons' : 'Season'}</span>
                     <span>•</span>
                     <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-slate-400" />
+                      <Clock className="w-3 h-3 text-rose-400" />
                       {item.seasons[0]?.episodes.length || 0} Episodes
                     </span>
                   </div>
@@ -175,7 +181,7 @@ export const Home: React.FC = () => {
                 <button
                   type="button"
                   onClick={(e) => handleQuickPlay(e, item)}
-                  className="shrink-0 p-3 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/50 active:scale-90 transition-transform"
+                  className="shrink-0 p-3 rounded-full bg-gradient-to-tr from-rose-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white shadow-[0_0_18px_rgba(244,63,94,0.6)] active:scale-90 transition-transform"
                   title="Quick Play"
                 >
                   <Play className="w-4 h-4 fill-current ml-0.5" />
@@ -198,8 +204,8 @@ export const Home: React.FC = () => {
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 active:scale-95 ${
                   isSelected
-                    ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30 scale-105'
-                    : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/50'
+                    ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-[0_0_15px_rgba(244,63,94,0.6)] border border-rose-400/50 scale-105'
+                    : 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 border border-slate-800'
                 }`}
               >
                 {cat}
@@ -213,7 +219,7 @@ export const Home: React.FC = () => {
       <section className="px-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Film className="w-4 h-4 text-rose-500" />
+            <Film className="w-4 h-4 text-rose-500 drop-shadow-[0_0_6px_rgba(244,63,94,0.6)]" />
             <h2 className="text-sm font-bold text-slate-200">
               {selectedCategory === 'All' ? 'Explore All Series' : `${selectedCategory} Collection`}
             </h2>
@@ -234,7 +240,7 @@ export const Home: React.FC = () => {
               <div
                 key={item.id}
                 onClick={() => handleSeriesClick(item)}
-                className="group relative flex flex-col bg-slate-900/90 rounded-xl overflow-hidden border border-slate-800/70 hover:border-slate-700 transition-all duration-200 cursor-pointer active:scale-95 shadow-md shadow-black/30"
+                className="group relative flex flex-col bg-slate-950/80 rounded-2xl overflow-hidden border border-rose-500/20 hover:border-rose-500/60 hover:shadow-[0_0_20px_rgba(244,63,94,0.3)] transition-all duration-300 cursor-pointer active:scale-95 shadow-md shadow-black/40"
               >
                 {/* Poster Thumbnail */}
                 <div className="relative aspect-[3/4] w-full overflow-hidden bg-slate-950">
@@ -244,17 +250,17 @@ export const Home: React.FC = () => {
                     loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/20" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-transparent to-black/20" />
 
                   {/* Top badges */}
                   <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
-                    <span className="px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-md text-[9px] font-bold text-rose-400 uppercase border border-rose-500/20">
+                    <span className="px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md text-[9px] font-bold text-rose-400 uppercase border border-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.4)]">
                       {item.category}
                     </span>
                   </div>
 
                   {item.rating && (
-                    <div className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md text-[9px] font-bold text-amber-300 border border-amber-400/20">
+                    <div className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md text-[9px] font-bold text-amber-300 border border-amber-400/30 shadow-[0_0_8px_rgba(245,158,11,0.4)]">
                       <Star className="w-2 h-2 fill-amber-300" />
                       {item.rating}
                     </div>
@@ -264,7 +270,7 @@ export const Home: React.FC = () => {
                   <button
                     type="button"
                     onClick={(e) => handleQuickPlay(e, item)}
-                    className="absolute bottom-2 right-2 p-2 rounded-full bg-rose-600/90 text-white shadow-md active:scale-90 transition-transform opacity-90 hover:opacity-100"
+                    className="absolute bottom-2 right-2 p-2 rounded-full bg-gradient-to-tr from-rose-600 to-amber-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.7)] active:scale-90 transition-transform opacity-95 hover:opacity-100"
                     title="Play"
                   >
                     <Play className="w-3 h-3 fill-current ml-0.5" />

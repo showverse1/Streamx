@@ -85,7 +85,7 @@ export const VideoPlayer: React.FC = () => {
 
   const lastTapRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
-  // Auto-hide controls timer
+  // Auto-hide controls timer (Strict 3 seconds)
   const resetControlsTimeout = useCallback(() => {
     setShowControls(true);
     if (controlsTimeoutRef.current) {
@@ -95,7 +95,7 @@ export const VideoPlayer: React.FC = () => {
       if (isPlaying) {
         setShowControls(false);
       }
-    }, 4000);
+    }, 3000);
   }, [isPlaying]);
 
   // Flash Gesture HUD

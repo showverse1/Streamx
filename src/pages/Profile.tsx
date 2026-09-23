@@ -199,14 +199,7 @@ export const Profile: React.FC = () => {
                   <span className="truncate">{user.email}</span>
                 </p>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                    VIP Member
-                  </span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Firebase Synced
-                  </span>
-                  <span className="text-[10px] text-slate-400">
+                  <span className="text-[11px] text-slate-400">
                     {watchHistory.length} watched
                   </span>
                 </div>
@@ -237,7 +230,7 @@ export const Profile: React.FC = () => {
                     Guest Account
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Sign in to save your cloud watch history
+                    Sign in with email and password
                   </p>
                 </div>
               </div>
@@ -258,51 +251,53 @@ export const Profile: React.FC = () => {
         )}
       </div>
 
-      {/* Content Studio & Upload Hub */}
-      <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 p-4 border border-slate-800 space-y-3 shadow-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
-              <Film className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-extrabold text-sm text-white flex items-center gap-1.5">
-                Content Studio
-                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                  Cloud Admin
-                </span>
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                {series.length} Movies & Series in Cloud Firestore
-              </p>
+      {/* Content Studio & Upload Hub (STRICTLY ADMIN ONLY: vk8260428@gmail.com) */}
+      {user?.email?.toLowerCase().trim() === 'vk8260428@gmail.com' && (
+        <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 p-4 border border-rose-500/30 space-y-3 shadow-lg shadow-rose-950/20 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                <Film className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-white flex items-center gap-1.5">
+                  Content Studio
+                  <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                    Admin
+                  </span>
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {series.length} Movies & Series in Cloud Firestore
+                </p>
+              </div>
             </div>
           </div>
+
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Content Manager: Add movies, web series, seasons, episodes, thumbnails & video stream links.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              haptic(40);
+              setIsContentManagerOpen(true);
+            }}
+            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-xs shadow-lg shadow-rose-600/25 transition-all active:scale-98 flex items-center justify-center gap-2"
+          >
+            <Sparkles className="w-4 h-4 text-amber-200" />
+            <span>Open Content Manager & Bulk Uploader</span>
+          </button>
         </div>
+      )}
 
-        <p className="text-xs text-slate-300 leading-relaxed">
-          Yahan se aap apne real movies, web series, seasons, episodes, thumbnails aur video stream links ko ek sath Cloud Database me daal sakte hain.
-        </p>
-
-        <button
-          type="button"
-          onClick={() => {
-            haptic(40);
-            setIsContentManagerOpen(true);
-          }}
-          className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-xs shadow-lg shadow-rose-600/25 transition-all active:scale-98 flex items-center justify-center gap-2"
-        >
-          <Sparkles className="w-4 h-4 text-amber-200" />
-          <span>Open Content Manager & Bulk Uploader</span>
-        </button>
-      </div>
-
-      {/* WATCH HISTORY SECTION MAPPED FROM LOCALSTORAGE */}
+      {/* WATCH HISTORY SECTION */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <History className="w-4 h-4 text-rose-500" />
             <h3 className="font-extrabold text-sm text-white tracking-tight">
-              Watch History {user?.uid ? '(Firestore Cloud Synced)' : '(LocalStorage)'}
+              Watch History
             </h3>
           </div>
 
