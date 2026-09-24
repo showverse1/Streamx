@@ -54,6 +54,10 @@ export interface DownloadItem {
   quality: '720p HD' | '1080p FHD' | '480p SD';
   downloadDate: number;
   videoUrl: string;
+  localFilePath?: string;
+  status?: 'downloading' | 'completed' | 'error';
+  downloadProgress?: number;
+  isOfflineReady?: boolean;
 }
 
 export interface UserProfile {

@@ -1,15 +1,50 @@
-import React from 'react';
-import { Download, HardDrive, Trash2, Play, CheckCircle2, Film } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Download,
+  HardDrive,
+  Trash2,
+  Play,
+  CheckCircle2,
+  FolderDown,
+  Share2,
+  FolderCheck,
+  Smartphone,
+  ExternalLink,
+  Film
+} from 'lucide-react';
 import { useAppStore } from '../store';
 import { DownloadItem } from '../types';
+import { exportVideoToPhoneStorage } from '../services/offlineStorage';
 
 export const Downloads: React.FC = () => {
-  const { downloads, deleteDownload, openSeriesWithEpisode, series, setCurrentTab, haptic } = useAppStore();
+  const {
+    downloads,
+    downloadProgress,
+    deleteDownload,
+    openSeriesWithEpisode,
+    setCurrentTab,
+    haptic
+  } = useAppStore();
+
+  const [exportedId, setExportedId] = useState<string | null>(null);
 
   const handlePlayDownloaded = (item: DownloadItem) => {
     haptic(50);
-    // Open the series directly with the half video player playing this episode
+    // Open the series directly with the video player playing this offline episode
     openSeriesWithEpisode(item.seriesId, item.seasonNum, item.episodeNum);
+  };
+
+  const handleExportToDisk = async (item: DownloadItem) => {
+    haptic(40);
+    const success = await exportVideoToPhoneStorage(
+      item.id,
+      `${item.seriesTitle.replace(/[^a-zA-Z0-9]/g, '_')}_S${item.seasonNum}_E${item.episodeNum}.mp4`
+    );
+
+    if (success) {
+      setExportedId(item.id);
+      setTimeout(() => setExportedId(null), 3000);
+    }
   };
 
   const totalSizeMB = downloads.reduce((acc, d) => {
@@ -17,62 +52,117 @@ export const Downloads: React.FC = () => {
     return acc + num;
   }, 0);
 
+  const activeProgressList = Object.entries(downloadProgress);
+
   return (
-    <div className="p-4 space-y-4 max-w-md mx-auto">
+    <div className="p-4 space-y-4 max-w-md mx-auto pb-24">
       {/* Offline Storage Status Card */}
-      <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+      <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <HardDrive className="w-4 h-4 text-rose-500" />
-            <h3 className="font-extrabold text-sm text-white">Offline Device Storage</h3>
+            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
+              <HardDrive className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-sm text-white">App Offline Storage Folder</h3>
+              <p className="text-[10px] text-slate-400 font-mono">StreamX/Media/Offline/</p>
+            </div>
           </div>
-          <span className="text-xs font-mono text-slate-400">
-            {totalSizeMB} MB Used
+          <span className="text-xs font-mono font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
+            {totalSizeMB} MB
           </span>
         </div>
 
         <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full"
-            style={{ width: `${Math.min(100, (totalSizeMB / 1024) * 100)}%` }}
+            className="h-full bg-gradient-to-r from-rose-500 via-rose-600 to-amber-500 rounded-full transition-all duration-300"
+            style={{ width: `${Math.min(100, (totalSizeMB / 2048) * 100)}%` }}
           />
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-slate-400">
-          <span>{downloads.length} {downloads.length === 1 ? 'Episode' : 'Episodes'} Saved</span>
-          <span>Max 1.0 GB Allocated</span>
+        <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+          <span className="flex items-center gap-1">
+            <Smartphone className="w-3.5 h-3.5 text-slate-500" />
+            <span>IndexedDB + Android App Storage</span>
+          </span>
+          <span className="text-emerald-400 font-semibold flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" /> 100% Offline Ready
+          </span>
         </div>
       </div>
 
+      {/* Active In-Progress Downloads */}
+      {activeProgressList.length > 0 && (
+        <div className="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-500/40 space-y-2 animate-in fade-in">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+              Downloading to App Folder...
+            </span>
+            <span className="text-[10px] font-mono text-rose-400">
+              {activeProgressList.length} in queue
+            </span>
+          </div>
+
+          {activeProgressList.map(([id, prog]) => (
+            <div key={id} className="space-y-1 bg-black/40 p-2.5 rounded-xl border border-rose-500/20">
+              <div className="flex items-center justify-between text-xs text-white">
+                <span className="font-semibold truncate max-w-[200px]">Video Episode File</span>
+                <span className="font-mono text-rose-300 font-bold">{prog.pct}%</span>
+              </div>
+              <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-rose-500 transition-all duration-150"
+                  style={{ width: `${prog.pct}%` }}
+                />
+              </div>
+              {prog.totalMB > 0 && (
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                  <span>{prog.loadedMB} MB downloaded</span>
+                  <span>{prog.totalMB} MB total</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Export feedback toast */}
+      {exportedId && (
+        <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+          <FolderCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>Video file exported successfully to your phone's Downloads folder!</span>
+        </div>
+      )}
+
       {/* Downloads List */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="font-extrabold text-sm text-white flex items-center gap-1.5">
-            <Download className="w-4 h-4 text-rose-500" />
-            <span>Saved for Offline</span>
+        <div className="flex items-center justify-between px-1">
+          <h4 className="font-extrabold text-sm text-white">
+            Saved Offline Videos ({downloads.length})
           </h4>
-          <span className="text-xs text-emerald-400 flex items-center gap-1 font-semibold">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Offline Storage
-          </span>
+          {downloads.length > 0 && (
+            <span className="text-[11px] text-slate-400">Available without internet</span>
+          )}
         </div>
 
         {downloads.length === 0 ? (
-          <div className="py-16 text-center space-y-3 p-6 rounded-2xl bg-slate-900/50 border border-slate-800/80">
-            <Film className="w-10 h-10 text-slate-600 mx-auto" />
-            <p className="text-sm font-semibold text-slate-300">No downloaded episodes</p>
-            <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
-              Tap the download icon next to any episode to save it for offline watching during flights or transit.
-            </p>
+          <div className="p-8 text-center rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 space-y-3">
+            <div className="w-12 h-12 rounded-full bg-slate-800/80 flex items-center justify-center mx-auto text-slate-500">
+              <Download className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-slate-300">No Offline Videos Saved</p>
+              <p className="text-xs text-slate-500 mt-1 max-w-[240px] mx-auto">
+                Download episodes to play smoothly anywhere on your phone with zero buffering and no internet!
+              </p>
+            </div>
             <button
               type="button"
-              onClick={() => {
-                haptic(40);
-                setCurrentTab('home');
-              }}
-              className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 active:scale-95 transition-all"
+              onClick={() => setCurrentTab('home')}
+              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg active:scale-95 transition"
             >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Browse Catalog</span>
+              Explore Movies & Series
             </button>
           </div>
         ) : (
@@ -108,12 +198,15 @@ export const Downloads: React.FC = () => {
                     <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 font-mono">
                       <span>{item.fileSize}</span>
                       <span>•</span>
-                      <span className="text-emerald-400">Ready</span>
+                      <span className="text-emerald-400 flex items-center gap-0.5">
+                        <CheckCircle2 className="w-2.5 h-2.5" /> Offline
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Play offline */}
                   <button
                     type="button"
                     onClick={() => handlePlayDownloaded(item)}
@@ -123,6 +216,17 @@ export const Downloads: React.FC = () => {
                     <Play className="w-3.5 h-3.5 fill-current" />
                   </button>
 
+                  {/* Export to device disk */}
+                  <button
+                    type="button"
+                    onClick={() => handleExportToDisk(item)}
+                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all active:scale-95 border border-slate-700/60"
+                    title="Save to Phone Storage (.mp4)"
+                  >
+                    <FolderDown className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Delete offline copy */}
                   <button
                     type="button"
                     onClick={() => {

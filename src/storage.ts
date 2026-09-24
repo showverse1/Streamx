@@ -1,11 +1,31 @@
-import { WatchHistoryItem, DownloadItem, UserProfile } from './types';
+import { WatchHistoryItem, DownloadItem, UserProfile, Series } from './types';
 
 const WATCH_HISTORY_KEY = 'streamx_watch_history';
 const DOWNLOADS_KEY = 'streamx_downloads';
 const RECENT_SEARCHES_KEY = 'streamx_recent_searches';
 const USER_KEY = 'streamx_user_profile';
+const SERIES_CACHE_KEY = 'streamx_series_cache';
 
 export const storage = {
+  getCachedSeries(): Series[] {
+    try {
+      const raw = localStorage.getItem(SERIES_CACHE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  },
+
+  saveCachedSeries(series: Series[]): void {
+    try {
+      localStorage.setItem(SERIES_CACHE_KEY, JSON.stringify(series));
+    } catch (e) {
+      console.warn('Failed to cache series in localStorage', e);
+    }
+  },
+
   getUser(): UserProfile | null {
     try {
       const raw = localStorage.getItem(USER_KEY);

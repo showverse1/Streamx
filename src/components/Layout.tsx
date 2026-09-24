@@ -6,6 +6,7 @@ import { TabType } from '../types';
 import { OfflineToast } from './OfflineToast';
 import { PWAInstallButton } from './PWAInstallButton';
 import { useOnlineStatus } from './useOnlineStatus';
+import { MiniPlayer } from './MiniPlayer';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -17,6 +18,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     setCurrentTab,
     selectedSeriesId,
     setSelectedSeriesId,
+    series,
+    setMiniPlayer,
     activePlayback,
     stopPlayback,
     backExitWarning,
@@ -48,8 +51,39 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       return true;
     }
 
-    // 2. If Series detail is open, close it back to current tab
+    // 2. If Series detail is open, seamlessly transition to Picture-in-Picture mode!
     if (selectedSeriesId) {
+      const activeVideo = document.querySelector('video') as HTMLVideoElement | null;
+      if (activeVideo && !activeVideo.paused && activeVideo.currentTime > 0) {
+        // Try system native PiP
+        try {
+          if (
+            typeof document !== 'undefined' &&
+            'pictureInPictureEnabled' in document &&
+            document.pictureInPictureEnabled
+          ) {
+            activeVideo.requestPictureInPicture().catch(() => {});
+          }
+        } catch {
+          // Continue to in-app PiP
+        }
+
+        const activeSeries = series.find((s) => s.id === selectedSeriesId);
+        if (activeSeries) {
+          const season = activeSeries.seasons[0];
+          const ep = season?.episodes[0];
+          if (ep) {
+            setMiniPlayer({
+              series: activeSeries,
+              seasonNum: season.seasonNumber,
+              episode: ep,
+              currentTime: activeVideo.currentTime,
+              isPaused: false
+            });
+          }
+        }
+      }
+
       setSelectedSeriesId(null);
       haptic(40);
       window.history.pushState({ streamx: 'detail-closed' }, '');
@@ -249,6 +283,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <main className="flex-1 pb-24 gpu-smooth">
         {children}
       </main>
+
+      {/* Floating Picture-in-Picture Mini-Player */}
+      <MiniPlayer />
 
       {/* "Press back again to exit" Floating Alert */}
       {backExitWarning && (

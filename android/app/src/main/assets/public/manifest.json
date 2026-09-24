@@ -1,0 +1,32 @@
+{
+  "id": "/",
+  "name": "StreamX-Web",
+  "short_name": "StreamX",
+  "description": "StreamX-Web - Production-Ready Mobile Web Video Streaming PWA with Custom Gestures, Picture-in-Picture & Watch History",
+  "theme_color": "#090a0f",
+  "background_color": "#090a0f",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -17,10 +17,12 @@ import {
   Film,
   Sparkles,
   Scaling,
-  Sun
+  Sun,
+  HardDrive
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Episode } from '../types';
+import { getOfflineVideoPlaybackUrl } from '../services/offlineStorage';
 
 export const SeriesDetail: React.FC = () => {
   const {
@@ -32,7 +34,10 @@ export const SeriesDetail: React.FC = () => {
     stopPlayback,
     recordEpisodeWatch,
     addDownload,
+    triggerDownloadWithProgress,
     downloads,
+    downloadProgress,
+    setMiniPlayer,
     haptic
   } = useAppStore();
 
@@ -43,6 +48,7 @@ export const SeriesDetail: React.FC = () => {
   const [activeSeasonNum, setActiveSeasonNum] = useState<number>(1);
   const [isPlayingInline, setIsPlayingInline] = useState<boolean>(true);
   const [currentPlayingEpisode, setCurrentPlayingEpisode] = useState<Episode | null>(null);
+  const [isOfflinePlaying, setIsOfflinePlaying] = useState<boolean>(false);
 
   // Aspect Ratio Mode: 'fit' (16:9 contain), 'stretch' (fill container), 'crop' (cover/zoom)
   const [aspectRatioMode, setAspectRatioMode] = useState<'fit' | 'stretch' | 'crop'>('fit');
@@ -129,13 +135,60 @@ export const SeriesDetail: React.FC = () => {
     }
   }, [currentSeries?.id, initialEpisodeTarget]);
 
-  // Sync active video url when episode changes
+  // Sync active video url and check for offline stored blob
   useEffect(() => {
-    if (currentPlayingEpisode?.videoUrl) {
-      setActiveVideoUrl(currentPlayingEpisode.videoUrl);
+    if (!currentPlayingEpisode || !currentSeries) return;
+
+    let isMounted = true;
+    const downloadId = `${currentSeries.id}_s${activeSeasonNum}_e${currentPlayingEpisode.episodeNumber}`;
+
+    getOfflineVideoPlaybackUrl(downloadId).then((offlineUrl) => {
+      if (!isMounted) return;
+      if (offlineUrl) {
+        setActiveVideoUrl(offlineUrl);
+        setIsOfflinePlaying(true);
+      } else if (currentPlayingEpisode.videoUrl) {
+        setActiveVideoUrl(currentPlayingEpisode.videoUrl);
+        setIsOfflinePlaying(false);
+      }
       setVideoError(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentPlayingEpisode?.id, currentPlayingEpisode?.videoUrl, currentSeries?.id, activeSeasonNum]);
+
+  // Handle exiting SeriesDetail with automatic Picture-in-Picture
+  const handleExitWithPiP = () => {
+    haptic(40);
+    if (currentSeries && currentPlayingEpisode && !isVideoPaused && currentTime > 0) {
+      // 1. Try system native Picture-in-Picture
+      try {
+        if (
+          typeof document !== 'undefined' &&
+          'pictureInPictureEnabled' in document &&
+          document.pictureInPictureEnabled &&
+          videoRef.current
+        ) {
+          videoRef.current.requestPictureInPicture().catch(() => {});
+        }
+      } catch {
+        // Continue to in-app PiP
+      }
+
+      // 2. Set in-app floating MiniPlayer
+      setMiniPlayer({
+        series: currentSeries,
+        seasonNum: activeSeasonNum,
+        episode: currentPlayingEpisode,
+        currentTime: videoRef.current ? videoRef.current.currentTime : currentTime,
+        isPaused: false
+      });
     }
-  }, [currentPlayingEpisode?.id, currentPlayingEpisode?.videoUrl]);
+
+    setSelectedSeriesId(null);
+  };
 
   const handleVideoError = () => {
     console.warn('Video playback error, switching to verified backup CDN mirror...');
@@ -259,6 +312,9 @@ export const SeriesDetail: React.FC = () => {
   const handleLoadedMetadata = () => {
     if (!videoRef.current) return;
     setDuration(videoRef.current.duration || currentPlayingEpisode?.durationSeconds || 0);
+    if (initialEpisodeTarget?.startAtSecond && initialEpisodeTarget.startAtSecond > 0) {
+      videoRef.current.currentTime = initialEpisodeTarget.startAtSecond;
+    }
     // Guarantee auto-play when video metadata is loaded
     videoRef.current.play().catch(() => {});
   };
@@ -757,19 +813,27 @@ export const SeriesDetail: React.FC = () => {
             >
               {/* Top Controls Bar */}
               <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    haptic(40);
-                    setSelectedSeriesId(null);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95 text-xs font-semibold border border-white/10"
-                  aria-label="Back"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Back</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExitWithPiP();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95 text-xs font-semibold border border-white/10"
+                    aria-label="Back"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back</span>
+                  </button>
+
+                  {isOfflinePlaying && (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-400 text-[10px] font-bold flex items-center gap-1">
+                      <HardDrive className="w-3 h-3" />
+                      <span>Offline Storage</span>
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-2">
                   {/* Stretch / Crop / Fit Toggle Option */}
@@ -1141,17 +1205,43 @@ export const SeriesDetail: React.FC = () => {
                     <CheckCircle2 className="w-3 h-3" /> Watched
                   </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    haptic(40);
-                    addDownload(currentSeries, activeSeason.seasonNumber, activeEpisodeForDetails);
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
-                >
-                  <Download className="w-3 h-3" />
-                  <span>Download</span>
-                </button>
+                {(() => {
+                  const dlId = `${currentSeries.id}_s${activeSeason.seasonNumber}_e${activeEpisodeForDetails.episodeNumber}`;
+                  const prog = downloadProgress[dlId];
+                  const isDownloaded = downloads.some((d) => d.id === dlId);
+
+                  if (prog) {
+                    return (
+                      <div className="px-2.5 py-1 rounded-lg bg-rose-950/80 border border-rose-500/50 text-rose-300 text-xs font-bold flex items-center gap-1.5 animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                        <span>{prog.pct}% ({prog.loadedMB}MB)</span>
+                      </div>
+                    );
+                  }
+
+                  if (isDownloaded) {
+                    return (
+                      <div className="px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-600/50 text-emerald-400 text-xs font-bold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Saved Offline</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic(40);
+                        triggerDownloadWithProgress(currentSeries, activeSeason.seasonNumber, activeEpisodeForDetails);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </button>
+                  );
+                })()}
               </div>
             </div>
 

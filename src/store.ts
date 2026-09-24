@@ -16,6 +16,7 @@ import {
   subscribeToAuthState
 } from './firebase';
 import { storage } from './storage';
+import { downloadEpisodeToAppFolder, deleteOfflineVideo } from './services/offlineStorage';
 
 export interface ActivePlayback {
   series: Series;
@@ -24,12 +25,21 @@ export interface ActivePlayback {
   seasonNum: number;
 }
 
+export interface MiniPlayerPlayback {
+  series: Series;
+  seasonNum: number;
+  episode: Episode;
+  currentTime: number;
+  isPaused: boolean;
+}
+
 interface AppState {
   // Navigation & System
   currentTab: TabType;
   selectedSeriesId: string | null;
-  initialEpisodeTarget: { seasonNum: number; episodeNum: number } | null;
+  initialEpisodeTarget: { seasonNum: number; episodeNum: number; startAtSecond?: number } | null;
   activePlayback: ActivePlayback | null;
+  miniPlayer: MiniPlayerPlayback | null;
   backExitWarning: boolean;
   
   // User Auth State
@@ -51,15 +61,21 @@ interface AppState {
   // LocalStorage State
   watchHistory: WatchHistoryItem[];
   downloads: DownloadItem[];
+  downloadProgress: Record<string, { pct: number; loadedMB: number; totalMB: number }>;
   recentSearches: string[];
 
   // Actions
   setCurrentTab: (tab: TabType) => void;
   setSelectedSeriesId: (id: string | null) => void;
-  openSeriesWithEpisode: (seriesId: string, seasonNum?: number, episodeNum?: number) => void;
+  openSeriesWithEpisode: (seriesId: string, seasonNum?: number, episodeNum?: number, startAtSecond?: number) => void;
   setSelectedCategory: (category: string) => void;
   setBackExitWarning: (show: boolean) => void;
   
+  // Mini Player actions (Picture-in-Picture)
+  setMiniPlayer: (mini: MiniPlayerPlayback | null) => void;
+  closeMiniPlayer: () => void;
+  resumeMiniPlayerInDetail: () => void;
+
   // Data actions
   loadSeries: () => Promise<void>;
   isContentManagerOpen: boolean;
@@ -78,6 +94,7 @@ interface AppState {
 
   // Downloads actions
   addDownload: (series: Series, seasonNum: number, episode: Episode) => void;
+  triggerDownloadWithProgress: (series: Series, seasonNum: number, episode: Episode) => Promise<void>;
   deleteDownload: (id: string) => void;
 
   // Recent searches actions
@@ -97,6 +114,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedSeriesId: null,
   initialEpisodeTarget: null,
   activePlayback: null,
+  miniPlayer: null,
   backExitWarning: false,
 
   // Auth default state
@@ -241,13 +259,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ user: null });
   },
 
-  series: [],
+  series: storage.getCachedSeries(),
   isLoading: false,
   error: null,
   selectedCategory: 'All',
 
   watchHistory: storage.getWatchHistory(),
   downloads: storage.getDownloads(),
+  downloadProgress: {},
   recentSearches: storage.getRecentSearches(),
 
   setCurrentTab: (tab: TabType) => {
@@ -260,14 +279,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ selectedSeriesId: id, initialEpisodeTarget: null, activePlayback: null });
   },
 
-  openSeriesWithEpisode: (seriesId: string, seasonNum?: number, episodeNum?: number) => {
+  openSeriesWithEpisode: (seriesId: string, seasonNum?: number, episodeNum?: number, startAtSecond?: number) => {
     get().haptic(50);
     set({
       selectedSeriesId: seriesId,
       initialEpisodeTarget: (seasonNum !== undefined && episodeNum !== undefined)
-        ? { seasonNum, episodeNum }
+        ? { seasonNum, episodeNum, startAtSecond }
         : null,
-      activePlayback: null
+      activePlayback: null,
+      miniPlayer: null
     });
   },
 
@@ -280,10 +300,31 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ backExitWarning: show });
   },
 
+  setMiniPlayer: (mini: MiniPlayerPlayback | null) => {
+    set({ miniPlayer: mini });
+  },
+
+  closeMiniPlayer: () => {
+    get().haptic(40);
+    set({ miniPlayer: null });
+  },
+
+  resumeMiniPlayerInDetail: () => {
+    const mini = get().miniPlayer;
+    if (!mini) return;
+    get().openSeriesWithEpisode(
+      mini.series.id,
+      mini.seasonNum,
+      mini.episode.episodeNumber,
+      mini.currentTime
+    );
+  },
+
   loadSeries: async () => {
     set({ isLoading: true, error: null });
     try {
       const data = await fetchSeriesData();
+      storage.saveCachedSeries(data);
       set({ series: data, isLoading: false });
     } catch (err: unknown) {
       set({
@@ -308,15 +349,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().haptic(40);
     await saveSeriesToFirestore(series);
     const existing = get().series.filter((s) => s.id !== series.id);
-    set({ series: [series, ...existing] });
+    const updated = [series, ...existing];
+    storage.saveCachedSeries(updated);
+    set({ series: updated });
   },
 
   updateSeries: async (series: Series) => {
     get().haptic(40);
     await saveSeriesToFirestore(series);
-    set({
-      series: get().series.map((s) => (s.id === series.id ? series : s))
-    });
+    const updated = get().series.map((s) => (s.id === series.id ? series : s));
+    storage.saveCachedSeries(updated);
+    set({ series: updated });
   },
 
   bulkAddSeries: async (seriesList: Series[]) => {
@@ -328,18 +371,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     current.forEach((s) => {
       if (!map.has(s.id)) map.set(s.id, s);
     });
-    set({ series: Array.from(map.values()) });
+    const updated = Array.from(map.values());
+    storage.saveCachedSeries(updated);
+    set({ series: updated });
   },
 
   deleteSeries: async (seriesId: string) => {
     get().haptic(40);
     await deleteSeriesFromFirestore(seriesId);
-    set({ series: get().series.filter((s) => s.id !== seriesId) });
+    const updated = get().series.filter((s) => s.id !== seriesId);
+    storage.saveCachedSeries(updated);
+    set({ series: updated });
   },
 
   clearAllSeries: async () => {
     get().haptic(60);
     await clearAllSeriesInFirestore();
+    storage.saveCachedSeries([]);
     set({ series: [] });
   },
 
@@ -405,9 +453,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   addDownload: (series: Series, seasonNum: number, episode: Episode) => {
+    get().triggerDownloadWithProgress(series, seasonNum, episode);
+  },
+
+  triggerDownloadWithProgress: async (series: Series, seasonNum: number, episode: Episode) => {
     get().haptic(50);
+    const downloadId = `${series.id}_s${seasonNum}_e${episode.episodeNumber}`;
+
+    // 1. Save preliminary download record
     const item: DownloadItem = {
-      id: `${series.id}_s${seasonNum}_e${episode.episodeNumber}`,
+      id: downloadId,
       seriesId: series.id,
       seriesTitle: series.title,
       seasonNum,
@@ -419,12 +474,53 @@ export const useAppStore = create<AppState>((set, get) => ({
       downloadDate: Date.now(),
       videoUrl: episode.videoUrl
     };
-    const updated = storage.saveDownload(item);
-    set({ downloads: updated });
+
+    const currentDownloads = storage.saveDownload(item);
+    set({ downloads: currentDownloads });
+
+    // 2. Start offline streaming download into IndexedDB
+    set((state) => ({
+      downloadProgress: {
+        ...state.downloadProgress,
+        [downloadId]: { pct: 5, loadedMB: 0, totalMB: 0 }
+      }
+    }));
+
+    try {
+      const res = await downloadEpisodeToAppFolder(
+        series,
+        seasonNum,
+        episode,
+        (pct, loadedMB, totalMB) => {
+          set((state) => ({
+            downloadProgress: {
+              ...state.downloadProgress,
+              [downloadId]: { pct, loadedMB, totalMB }
+            }
+          }));
+        }
+      );
+
+      if (res.success) {
+        get().haptic(70);
+      }
+    } catch (e) {
+      console.warn('Offline download progress note:', e);
+    } finally {
+      // Clear progress indicator after short delay
+      setTimeout(() => {
+        set((state) => {
+          const next = { ...state.downloadProgress };
+          delete next[downloadId];
+          return { downloadProgress: next };
+        });
+      }, 1500);
+    }
   },
 
   deleteDownload: (id: string) => {
     get().haptic(40);
+    deleteOfflineVideo(id).catch(() => {});
     const updated = storage.removeDownload(id);
     set({ downloads: updated });
   },
