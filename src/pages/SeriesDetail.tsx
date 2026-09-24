@@ -18,7 +18,9 @@ import {
   Sparkles,
   Scaling,
   Sun,
-  HardDrive
+  HardDrive,
+  FastForward,
+  Rewind
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Episode } from '../types';
@@ -59,8 +61,11 @@ export const SeriesDetail: React.FC = () => {
 
   // Gesture HUD Overlay state
   const [gestureHUD, setGestureHUD] = useState<{
-    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'aspect' | null;
+    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'seek-swipe' | 'aspect' | null;
     value: string | number;
+    subValue?: string;
+    progress?: number;
+    seekDelta?: number;
   }>({ type: null, value: 0 });
   const hudTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -68,18 +73,22 @@ export const SeriesDetail: React.FC = () => {
   const [ripple, setRipple] = useState<{ side: 'left' | 'right'; key: number } | null>(null);
   const rippleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Touch gesture tracker refs
+  // Touch & pointer gesture tracker refs
   const touchStartRef = useRef<{
-    x: number;
-    y: number;
+    startX: number;
+    startY: number;
     time: number;
     initialBrightness: number;
     initialVolume: number;
-    isVerticalDrag: boolean;
+    initialTime: number;
+    gestureMode: 'none' | 'brightness' | 'volume' | 'seek';
+    targetSeekTime: number;
+    seekDelta: number;
   } | null>(null);
 
   const lastTapRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const singleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isPointerDownRef = useRef<boolean>(false);
 
   // Video element state
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -377,14 +386,21 @@ export const SeriesDetail: React.FC = () => {
   };
 
   const triggerHUD = (
-    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'aspect',
-    value: string | number
+    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'seek-swipe' | 'aspect',
+    value: string | number,
+    extra?: { subValue?: string; progress?: number; seekDelta?: number; autoHideMs?: number }
   ) => {
-    setGestureHUD({ type, value });
+    setGestureHUD({
+      type,
+      value,
+      subValue: extra?.subValue,
+      progress: extra?.progress,
+      seekDelta: extra?.seekDelta
+    });
     if (hudTimeoutRef.current) clearTimeout(hudTimeoutRef.current);
     hudTimeoutRef.current = setTimeout(() => {
       setGestureHUD({ type: null, value: 0 });
-    }, 1200);
+    }, extra?.autoHideMs ?? 1200);
   };
 
   const triggerRipple = (side: 'left' | 'right') => {
@@ -524,96 +540,157 @@ export const SeriesDetail: React.FC = () => {
     };
   }, [currentPlayingEpisode?.id]);
 
-  // Touch handlers for video player screen gestures (Double-tap & swipe controls)
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
+  // Universal gesture controller for mobile touch and desktop mouse swipe
+  const startGesture = (clientX: number, clientY: number, containerRect: DOMRect) => {
+    const x = clientX - containerRect.left;
+    const y = clientY - containerRect.top;
 
     touchStartRef.current = {
-      x,
-      y,
+      startX: x,
+      startY: y,
       time: Date.now(),
       initialBrightness: brightness,
       initialVolume: videoRef.current ? videoRef.current.volume : volume,
-      isVerticalDrag: false
+      initialTime: videoRef.current ? videoRef.current.currentTime : currentTime,
+      gestureMode: 'none',
+      targetSeekTime: videoRef.current ? videoRef.current.currentTime : currentTime,
+      seekDelta: 0
     };
   };
 
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (!touchStartRef.current || e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    const rect = e.currentTarget.getBoundingClientRect();
-    const currentY = touch.clientY - rect.top;
-    const currentX = touch.clientX - rect.left;
-    const deltaY = touchStartRef.current.y - currentY; // Upward swipe = positive
-    const deltaX = Math.abs(currentX - touchStartRef.current.x);
+  const moveGesture = (clientX: number, clientY: number, containerRect: DOMRect) => {
+    if (!touchStartRef.current) return;
+    const tracker = touchStartRef.current;
+    const currentX = clientX - containerRect.left;
+    const currentY = clientY - containerRect.top;
 
-    // If moving vertically more than 8px and deltaY > deltaX
-    if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > deltaX) {
-      touchStartRef.current.isVerticalDrag = true;
-      const height = rect.height;
-      const change = deltaY / height; // Normalized drag range
+    const deltaX = currentX - tracker.startX; // Rightward swipe = forward, leftward = rewind
+    const deltaY = tracker.startY - currentY; // Upward swipe = increase, downward = decrease
 
-      if (touchStartRef.current.x <= rect.width * 0.5) {
-        // LEFT SIDE: Brightness control (0.2 to 1.5)
-        const newBrightness = Math.max(0.2, Math.min(1.5, touchStartRef.current.initialBrightness + change * 1.6));
-        setBrightness(newBrightness);
-        triggerHUD('brightness', `${Math.round((newBrightness / 1.5) * 100)}%`);
-      } else {
-        // RIGHT SIDE: Volume control (0 to 1.0)
-        const newVolume = Math.max(0, Math.min(1.0, touchStartRef.current.initialVolume + change * 1.6));
-        setVolume(newVolume);
-        if (videoRef.current) {
-          videoRef.current.volume = newVolume;
-          videoRef.current.muted = newVolume === 0;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    // Determine gesture mode if not locked in yet
+    if (tracker.gestureMode === 'none') {
+      if (absY > 8 && absY > absX) {
+        // Vertical swipe!
+        if (tracker.startX <= containerRect.width * 0.5) {
+          tracker.gestureMode = 'brightness';
+          haptic(25);
+        } else {
+          tracker.gestureMode = 'volume';
+          haptic(25);
         }
-        setIsMuted(newVolume === 0);
-        triggerHUD('volume', `${Math.round(newVolume * 100)}%`);
+      } else if (absX > 10 && absX > absY) {
+        // Horizontal swipe -> Seek gesture!
+        tracker.gestureMode = 'seek';
+        haptic(25);
       }
+    }
+
+    // Process active gesture
+    if (tracker.gestureMode === 'brightness') {
+      const height = containerRect.height || 260;
+      const change = deltaY / (height * 0.7);
+      const newBrightness = Math.max(0.15, Math.min(1.5, tracker.initialBrightness + change * 1.5));
+      setBrightness(newBrightness);
+      const pct = Math.round((newBrightness / 1.5) * 100);
+      triggerHUD('brightness', `${pct}%`, {
+        progress: (newBrightness - 0.15) / (1.5 - 0.15),
+        autoHideMs: 1400
+      });
+    } else if (tracker.gestureMode === 'volume') {
+      const height = containerRect.height || 260;
+      const change = deltaY / (height * 0.7);
+      const newVolume = Math.max(0, Math.min(1.0, tracker.initialVolume + change * 1.5));
+      setVolume(newVolume);
+      if (videoRef.current) {
+        videoRef.current.volume = newVolume;
+        videoRef.current.muted = newVolume === 0;
+      }
+      setIsMuted(newVolume === 0);
+      const pct = Math.round(newVolume * 100);
+      triggerHUD('volume', `${pct}%`, {
+        progress: newVolume,
+        autoHideMs: 1400
+      });
+    } else if (tracker.gestureMode === 'seek') {
+      const width = containerRect.width || 400;
+      const totalDur = duration || currentPlayingEpisode?.durationSeconds || 180;
+      const maxScrubRange = Math.max(60, Math.min(totalDur * 0.45, 300));
+      const swipeRatio = deltaX / (width * 0.65);
+      const deltaSec = Math.round(swipeRatio * maxScrubRange);
+
+      const targetTime = Math.max(0, Math.min(totalDur, tracker.initialTime + deltaSec));
+      tracker.targetSeekTime = targetTime;
+      tracker.seekDelta = deltaSec;
+
+      const progress = totalDur > 0 ? targetTime / totalDur : 0;
+      const deltaSign = deltaSec >= 0 ? '+' : '';
+      const formattedTarget = formatSeconds(targetTime);
+      const formattedTotal = formatSeconds(totalDur);
+
+      triggerHUD('seek-swipe', `${deltaSign}${deltaSec}s`, {
+        subValue: `${formattedTarget} / ${formattedTotal}`,
+        progress,
+        seekDelta: deltaSec,
+        autoHideMs: 1600
+      });
     }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+  const endGesture = (containerRect: DOMRect) => {
     if (!touchStartRef.current) return;
-    const { isVerticalDrag, x } = touchStartRef.current;
+    const tracker = touchStartRef.current;
     const now = Date.now();
-    const rect = e.currentTarget.getBoundingClientRect();
 
-    if (isVerticalDrag) {
+    if (tracker.gestureMode === 'seek') {
+      if (videoRef.current) {
+        videoRef.current.currentTime = tracker.targetSeekTime;
+        setCurrentTime(tracker.targetSeekTime);
+        haptic(50);
+      }
+      if (hudTimeoutRef.current) clearTimeout(hudTimeoutRef.current);
+      hudTimeoutRef.current = setTimeout(() => {
+        setGestureHUD({ type: null, value: 0 });
+      }, 800);
       touchStartRef.current = null;
       return;
     }
 
+    if (tracker.gestureMode === 'brightness' || tracker.gestureMode === 'volume') {
+      if (hudTimeoutRef.current) clearTimeout(hudTimeoutRef.current);
+      hudTimeoutRef.current = setTimeout(() => {
+        setGestureHUD({ type: null, value: 0 });
+      }, 800);
+      touchStartRef.current = null;
+      return;
+    }
+
+    // Process tap candidates (Single or Double tap)
+    const x = tracker.startX;
     const lastTap = lastTapRef.current;
     if (lastTap && (now - lastTap.time) < 320 && Math.abs(x - lastTap.x) < 55) {
-      // DOUBLE TAP RECOGNIZED!
       if (singleTapTimeoutRef.current) {
         clearTimeout(singleTapTimeoutRef.current);
         singleTapTimeoutRef.current = null;
       }
       lastTapRef.current = null;
 
-      if (x > rect.width * 0.55) {
-        // RIGHT SIDE DOUBLE TAP -> +10s forward!
+      if (x > containerRect.width * 0.55) {
         handleSeek(10);
         triggerRipple('right');
         triggerHUD('seek-forward', '+10s');
-      } else if (x < rect.width * 0.45) {
-        // LEFT SIDE DOUBLE TAP -> -10s backward!
+      } else if (x < containerRect.width * 0.45) {
         handleSeek(-10);
         triggerRipple('left');
         triggerHUD('seek-backward', '-10s');
       } else {
-        // CENTER DOUBLE TAP -> Toggle Play/Pause!
         handlePlayPause();
       }
     } else {
-      // SINGLE TAP CANDIDATE
       lastTouchEndTimestamp.current = now;
-      lastTapRef.current = { x, y: touchStartRef.current.y, time: now };
+      lastTapRef.current = { x, y: tracker.startY, time: now };
       if (singleTapTimeoutRef.current) clearTimeout(singleTapTimeoutRef.current);
       singleTapTimeoutRef.current = setTimeout(() => {
         handleScreenTap();
@@ -621,6 +698,46 @@ export const SeriesDetail: React.FC = () => {
     }
 
     touchStartRef.current = null;
+  };
+
+  // Touch handlers
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) return;
+    startGesture(e.touches[0].clientX, e.touches[0].clientY, e.currentTarget.getBoundingClientRect());
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStartRef.current || e.touches.length !== 1) return;
+    moveGesture(e.touches[0].clientX, e.touches[0].clientY, e.currentTarget.getBoundingClientRect());
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    endGesture(e.currentTarget.getBoundingClientRect());
+  };
+
+  // Mouse drag handlers for desktop support
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    isPointerDownRef.current = true;
+    startGesture(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPointerDownRef.current) return;
+    moveGesture(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
+  };
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPointerDownRef.current) return;
+    isPointerDownRef.current = false;
+    endGesture(e.currentTarget.getBoundingClientRect());
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isPointerDownRef.current) {
+      isPointerDownRef.current = false;
+      endGesture(e.currentTarget.getBoundingClientRect());
+    }
   };
 
   // Mouse Double Click handler (Desktop/Browser support)
@@ -670,6 +787,10 @@ export const SeriesDetail: React.FC = () => {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
             onDoubleClick={handleDoubleClick}
             onClick={handleContainerClick}
             className={`relative w-full overflow-hidden group select-none touch-none transition-all duration-300 ${
@@ -752,13 +873,20 @@ export const SeriesDetail: React.FC = () => {
 
             {/* Center Gesture HUD Overlay (Volume, Brightness, Seek, Aspect Ratio) */}
             {gestureHUD.type && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-35">
-                <div className="flex flex-col items-center gap-2 bg-black/85 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/20 text-white shadow-2xl min-w-[140px]">
-                  {gestureHUD.type === 'brightness' && <Sun className="w-8 h-8 text-amber-400" />}
-                  {gestureHUD.type === 'volume' && (isMuted || volume === 0 ? <VolumeX className="w-8 h-8 text-rose-500" /> : <Volume2 className="w-8 h-8 text-rose-500" />)}
-                  {gestureHUD.type === 'seek-backward' && <RotateCcw className="w-8 h-8 text-rose-400" />}
-                  {gestureHUD.type === 'seek-forward' && <RotateCw className="w-8 h-8 text-rose-400" />}
-                  {gestureHUD.type === 'aspect' && <Scaling className="w-8 h-8 text-sky-400" />}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-35 animate-in fade-in zoom-in-95 duration-100">
+                <div className="flex flex-col items-center gap-2 bg-black/85 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/20 text-white shadow-2xl min-w-[160px]">
+                  {gestureHUD.type === 'brightness' && <Sun className="w-9 h-9 text-amber-400 animate-pulse" />}
+                  {gestureHUD.type === 'volume' && (isMuted || volume === 0 ? <VolumeX className="w-9 h-9 text-rose-500" /> : <Volume2 className="w-9 h-9 text-rose-500" />)}
+                  {gestureHUD.type === 'seek-backward' && <RotateCcw className="w-9 h-9 text-rose-400" />}
+                  {gestureHUD.type === 'seek-forward' && <RotateCw className="w-9 h-9 text-rose-400" />}
+                  {gestureHUD.type === 'seek-swipe' && (
+                    (gestureHUD.seekDelta ?? 0) < 0 ? (
+                      <Rewind className="w-9 h-9 text-rose-400 animate-pulse" />
+                    ) : (
+                      <FastForward className="w-9 h-9 text-rose-400 animate-pulse" />
+                    )
+                  )}
+                  {gestureHUD.type === 'aspect' && <Scaling className="w-9 h-9 text-sky-400" />}
 
                   <span className="font-bold text-[11px] tracking-wider uppercase text-slate-300">
                     {gestureHUD.type === 'brightness'
@@ -767,24 +895,31 @@ export const SeriesDetail: React.FC = () => {
                       ? 'Volume'
                       : gestureHUD.type === 'aspect'
                       ? 'Screen Fit'
-                      : 'Seek'}
+                      : 'Seek Position'}
                   </span>
 
-                  <span className="font-mono text-sm font-extrabold text-white">
+                  <span className="font-mono text-base font-extrabold text-white">
                     {gestureHUD.value}
                   </span>
 
-                  {(gestureHUD.type === 'volume' || gestureHUD.type === 'brightness') && (
-                    <div className="w-24 h-1.5 bg-white/20 rounded-full overflow-hidden mt-1">
+                  {gestureHUD.subValue && (
+                    <span className="font-mono text-xs font-semibold text-rose-300 -mt-1">
+                      {gestureHUD.subValue}
+                    </span>
+                  )}
+
+                  {(gestureHUD.type === 'volume' || gestureHUD.type === 'brightness' || gestureHUD.type === 'seek-swipe') && (
+                    <div className="w-32 h-2 bg-white/20 rounded-full overflow-hidden mt-1 shadow-inner">
                       <div
                         className={`h-full rounded-full transition-all duration-75 ${
-                          gestureHUD.type === 'brightness' ? 'bg-amber-400' : 'bg-rose-500'
+                          gestureHUD.type === 'brightness'
+                            ? 'bg-amber-400'
+                            : gestureHUD.type === 'volume'
+                            ? 'bg-rose-500'
+                            : 'bg-gradient-to-r from-rose-500 to-amber-400'
                         }`}
                         style={{
-                          width:
-                            gestureHUD.type === 'brightness'
-                              ? `${Math.min(100, (brightness / 1.5) * 100)}%`
-                              : `${volume * 100}%`
+                          width: `${Math.max(0, Math.min(100, (gestureHUD.progress ?? 0) * 100))}%`
                         }}
                       />
                     </div>
@@ -859,6 +994,26 @@ export const SeriesDetail: React.FC = () => {
                   >
                     {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
                   </button>
+                </div>
+              </div>
+
+              {/* Subtle Swipe Gesture Hints for Discoverability */}
+              <div className="flex items-center justify-center pointer-events-none">
+                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] text-slate-300 font-medium shadow-md">
+                  <span className="flex items-center gap-1 text-amber-300">
+                    <Sun className="w-3 h-3 text-amber-400" />
+                    <span>Left: Brightness</span>
+                  </span>
+                  <span className="text-white/30">•</span>
+                  <span className="flex items-center gap-1 text-rose-300">
+                    <Volume2 className="w-3 h-3 text-rose-400" />
+                    <span>Right: Volume</span>
+                  </span>
+                  <span className="text-white/30">•</span>
+                  <span className="flex items-center gap-1 text-sky-300">
+                    <FastForward className="w-3 h-3 text-sky-400" />
+                    <span>Swipe: Seek</span>
+                  </span>
                 </div>
               </div>
 
