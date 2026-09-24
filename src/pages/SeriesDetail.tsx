@@ -20,11 +20,15 @@ import {
   Sun,
   HardDrive,
   FastForward,
-  Rewind
+  Rewind,
+  SkipForward,
+  Gauge
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Episode } from '../types';
 import { getOfflineVideoPlaybackUrl } from '../services/offlineStorage';
+import { ScreenOrientation } from '@capacitor/screen-orientation';
+import { StatusBar } from '@capacitor/status-bar';
 
 export const SeriesDetail: React.FC = () => {
   const {
@@ -61,7 +65,7 @@ export const SeriesDetail: React.FC = () => {
 
   // Gesture HUD Overlay state
   const [gestureHUD, setGestureHUD] = useState<{
-    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'seek-swipe' | 'aspect' | null;
+    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'seek-swipe' | 'aspect' | 'speed' | null;
     value: string | number;
     subValue?: string;
     progress?: number;
@@ -93,6 +97,8 @@ export const SeriesDetail: React.FC = () => {
   // Video element state
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isVideoPaused, setIsVideoPaused] = useState<boolean>(false);
+  const [isBuffering, setIsBuffering] = useState<boolean>(true);
+  const [playbackRate, setPlaybackRate] = useState<number>(1.0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
@@ -171,6 +177,19 @@ export const SeriesDetail: React.FC = () => {
   // Handle exiting SeriesDetail with automatic Picture-in-Picture
   const handleExitWithPiP = () => {
     haptic(40);
+    if (isFullscreen) {
+      setIsFullscreen(false);
+      try {
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+      } catch (_) {}
+      try {
+        ScreenOrientation.unlock().catch(() => {});
+      } catch (_) {}
+      try {
+        StatusBar.show().catch(() => {});
+      } catch (_) {}
+    }
+
     if (currentSeries && currentPlayingEpisode && !isVideoPaused && currentTime > 0) {
       // 1. Try system native Picture-in-Picture
       try {
@@ -336,12 +355,16 @@ export const SeriesDetail: React.FC = () => {
 
   const lastTouchEndTimestamp = useRef<number>(0);
 
-  // Auto-hide controls timer (Strict 3 seconds of inactivity)
+  // Auto-hide controls timer (Strict 4s during playback, never hide while paused!)
   const startControlsHideTimer = () => {
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    // When paused, do NOT auto-hide controls so user can see and tap buttons easily!
+    if (isVideoPaused || (videoRef.current && videoRef.current.paused)) {
+      return;
+    }
     controlsTimeoutRef.current = setTimeout(() => {
       setShowControls(false);
-    }, 3000);
+    }, 4000);
   };
 
   const showAndScheduleHideControls = () => {
@@ -376,17 +399,47 @@ export const SeriesDetail: React.FC = () => {
     haptic(40);
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
-      videoRef.current.play();
-      setIsVideoPaused(false);
+      videoRef.current.play().then(() => {
+        setIsVideoPaused(false);
+        startControlsHideTimer();
+      }).catch(() => {});
     } else {
       videoRef.current.pause();
       setIsVideoPaused(true);
+      setShowControls(true); // Keep controls open while paused!
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+        controlsTimeoutRef.current = null;
+      }
     }
+  };
+
+  const cyclePlaybackSpeed = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    haptic(35);
     startControlsHideTimer();
+    const speeds = [1.0, 1.25, 1.5, 2.0, 0.75];
+    const nextIdx = (speeds.indexOf(playbackRate) + 1) % speeds.length;
+    const nextSpeed = speeds[nextIdx];
+    setPlaybackRate(nextSpeed);
+    if (videoRef.current) {
+      videoRef.current.playbackRate = nextSpeed;
+    }
+    triggerHUD('speed', `${nextSpeed}x`);
+  };
+
+  const playNextEpisode = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    haptic(40);
+    if (!activeSeason || !currentPlayingEpisode) return;
+    const currentIndex = activeSeason.episodes.findIndex((ep) => ep.id === currentPlayingEpisode.id);
+    if (currentIndex >= 0 && currentIndex < activeSeason.episodes.length - 1) {
+      handlePlayEpisode(activeSeason.episodes[currentIndex + 1]);
+    }
   };
 
   const triggerHUD = (
-    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'seek-swipe' | 'aspect',
+    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'seek-swipe' | 'aspect' | 'speed',
     value: string | number,
     extra?: { subValue?: string; progress?: number; seekDelta?: number; autoHideMs?: number }
   ) => {
@@ -459,6 +512,10 @@ export const SeriesDetail: React.FC = () => {
       setIsFullscreen(isFS);
       if (!isFS) {
         try {
+          ScreenOrientation.unlock().catch(() => {});
+          StatusBar.show().catch(() => {});
+        } catch (_) {}
+        try {
           const screenAny = screen as unknown as { orientation?: { unlock?: () => void } };
           if (screenAny.orientation && typeof screenAny.orientation.unlock === 'function') {
             screenAny.orientation.unlock();
@@ -472,6 +529,10 @@ export const SeriesDetail: React.FC = () => {
       document.removeEventListener('fullscreenchange', handleFSChange);
       document.removeEventListener('webkitfullscreenchange', handleFSChange);
       try {
+        ScreenOrientation.unlock().catch(() => {});
+        StatusBar.show().catch(() => {});
+      } catch (_) {}
+      try {
         const screenAny = screen as unknown as { orientation?: { unlock?: () => void } };
         if (screenAny.orientation && typeof screenAny.orientation.unlock === 'function') {
           screenAny.orientation.unlock();
@@ -480,13 +541,13 @@ export const SeriesDetail: React.FC = () => {
     };
   }, []);
 
-  const toggleFullscreen = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleFullscreen = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     haptic(50);
     const container = document.getElementById('inline-video-container');
     if (!container) return;
 
-    const isCurrentFS = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+    const isCurrentFS = isFullscreen || !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
 
     if (!isCurrentFS) {
       const req = container.requestFullscreen || (container as any).webkitRequestFullscreen;
@@ -501,13 +562,22 @@ export const SeriesDetail: React.FC = () => {
         setIsFullscreen(true);
       }
 
-      // Automatically force landscape screen orientation on mobile devices
+      // Hide Android phone status bar and gesture navigation bar for edge-to-edge landscape
       try {
-        const screenAny = screen as unknown as { orientation?: { lock?: (orient: string) => Promise<void> } };
-        if (screenAny.orientation && typeof screenAny.orientation.lock === 'function') {
-          await screenAny.orientation.lock('landscape').catch(() => {});
-        }
+        await StatusBar.hide();
       } catch (_) {}
+
+      // Rotate and lock phone screen to landscape natively on Android APK & Web
+      try {
+        await ScreenOrientation.lock({ orientation: 'landscape' });
+      } catch (_) {
+        try {
+          const screenAny = screen as unknown as { orientation?: { lock?: (orient: string) => Promise<void> } };
+          if (screenAny.orientation && typeof screenAny.orientation.lock === 'function') {
+            await screenAny.orientation.lock('landscape').catch(() => {});
+          }
+        } catch (_) {}
+      }
     } else {
       const exit = document.exitFullscreen || (document as any).webkitExitFullscreen;
       if (exit) {
@@ -521,13 +591,22 @@ export const SeriesDetail: React.FC = () => {
         setIsFullscreen(false);
       }
 
+      // Restore Android status bar
+      try {
+        await StatusBar.show();
+      } catch (_) {}
+
       // Unlock back to portrait orientation
       try {
-        const screenAny = screen as unknown as { orientation?: { unlock?: () => void } };
-        if (screenAny.orientation && typeof screenAny.orientation.unlock === 'function') {
-          screenAny.orientation.unlock();
-        }
-      } catch (_) {}
+        await ScreenOrientation.unlock();
+      } catch (_) {
+        try {
+          const screenAny = screen as unknown as { orientation?: { unlock?: () => void } };
+          if (screenAny.orientation && typeof screenAny.orientation.unlock === 'function') {
+            screenAny.orientation.unlock();
+          }
+        } catch (_) {}
+      }
     }
     startControlsHideTimer();
   };
@@ -793,7 +872,7 @@ export const SeriesDetail: React.FC = () => {
             onMouseLeave={handleMouseLeave}
             onDoubleClick={handleDoubleClick}
             onClick={handleContainerClick}
-            className={`relative w-full overflow-hidden group select-none touch-none transition-all duration-300 ${
+            className={`relative w-full overflow-hidden group select-none touch-none outline-none ring-0 focus:outline-none [-webkit-tap-highlight-color:transparent] transition-all duration-300 ${
               isFullscreen
                 ? 'fixed inset-0 z-[100] w-screen h-screen bg-black flex items-center justify-center'
                 : 'aspect-video bg-black'
@@ -805,7 +884,15 @@ export const SeriesDetail: React.FC = () => {
               src={activeVideoUrl || currentPlayingEpisode.videoUrl}
               autoPlay
               playsInline
-              onCanPlay={handleCanPlay}
+              onLoadStart={() => setIsBuffering(true)}
+              onWaiting={() => setIsBuffering(true)}
+              onSeeking={() => setIsBuffering(true)}
+              onCanPlay={() => {
+                setIsBuffering(false);
+                handleCanPlay();
+              }}
+              onPlaying={() => setIsBuffering(false)}
+              onSeeked={() => setIsBuffering(false)}
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               onError={handleVideoError}
@@ -832,6 +919,19 @@ export const SeriesDetail: React.FC = () => {
               <source src={activeVideoUrl || currentPlayingEpisode.videoUrl} type="video/mp4" />
             </video>
 
+            {/* Network Buffering / Loading Spinning Circle */}
+            {isBuffering && !videoError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] z-25 pointer-events-none transition-all">
+                <div className="relative flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full border-4 border-white/20 border-t-rose-500 animate-spin" />
+                  <div className="w-3 h-3 rounded-full bg-rose-500 absolute animate-ping" />
+                </div>
+                <span className="mt-3.5 text-xs font-semibold text-white/90 tracking-wider font-mono drop-shadow">
+                  Buffering video...
+                </span>
+              </div>
+            )}
+
             {/* Video Error Recovery Overlay */}
             {videoError && (
               <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-4 text-center z-30">
@@ -853,70 +953,77 @@ export const SeriesDetail: React.FC = () => {
 
             {/* Double Tap Left Side Feedback (-10s) */}
             {ripple?.side === 'left' && (
-              <div className="absolute inset-y-0 left-0 w-5/12 flex items-center justify-center pointer-events-none z-30 bg-rose-500/10 rounded-r-full animate-pulse transition-all">
-                <div className="flex flex-col items-center justify-center bg-black/75 backdrop-blur-md text-white px-4 py-3 rounded-2xl border border-white/20 shadow-2xl">
-                  <RotateCcw className="w-8 h-8 text-rose-400 animate-spin" />
-                  <span className="font-black text-sm tracking-wide mt-1 font-mono text-rose-300">-10s</span>
+              <div className="absolute inset-y-0 left-0 w-1/3 flex items-center justify-center pointer-events-none z-30 transition-all">
+                <div className="flex flex-col items-center justify-center text-white p-3.5 rounded-full bg-black/50 backdrop-blur-sm animate-pulse shadow-lg">
+                  <RotateCcw className="w-7 h-7 text-rose-400 animate-spin" />
+                  <span className="font-black text-xs tracking-wider mt-0.5 font-mono text-rose-300">-10s</span>
                 </div>
               </div>
             )}
 
             {/* Double Tap Right Side Feedback (+10s) */}
             {ripple?.side === 'right' && (
-              <div className="absolute inset-y-0 right-0 w-5/12 flex items-center justify-center pointer-events-none z-30 bg-rose-500/10 rounded-l-full animate-pulse transition-all">
-                <div className="flex flex-col items-center justify-center bg-black/75 backdrop-blur-md text-white px-4 py-3 rounded-2xl border border-white/20 shadow-2xl">
-                  <RotateCw className="w-8 h-8 text-rose-400 animate-spin" />
-                  <span className="font-black text-sm tracking-wide mt-1 font-mono text-rose-300">+10s</span>
+              <div className="absolute inset-y-0 right-0 w-1/3 flex items-center justify-center pointer-events-none z-30 transition-all">
+                <div className="flex flex-col items-center justify-center text-white p-3.5 rounded-full bg-black/50 backdrop-blur-sm animate-pulse shadow-lg">
+                  <RotateCw className="w-7 h-7 text-rose-400 animate-spin" />
+                  <span className="font-black text-xs tracking-wider mt-0.5 font-mono text-rose-300">+10s</span>
                 </div>
               </div>
             )}
 
-            {/* Center Gesture HUD Overlay (Volume, Brightness, Seek, Aspect Ratio) */}
-            {gestureHUD.type && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-35 animate-in fade-in zoom-in-95 duration-100">
-                <div className="flex flex-col items-center gap-2 bg-black/85 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/20 text-white shadow-2xl min-w-[160px]">
-                  {gestureHUD.type === 'brightness' && <Sun className="w-9 h-9 text-amber-400 animate-pulse" />}
-                  {gestureHUD.type === 'volume' && (isMuted || volume === 0 ? <VolumeX className="w-9 h-9 text-rose-500" /> : <Volume2 className="w-9 h-9 text-rose-500" />)}
-                  {gestureHUD.type === 'seek-backward' && <RotateCcw className="w-9 h-9 text-rose-400" />}
-                  {gestureHUD.type === 'seek-forward' && <RotateCw className="w-9 h-9 text-rose-400" />}
-                  {gestureHUD.type === 'seek-swipe' && (
-                    (gestureHUD.seekDelta ?? 0) < 0 ? (
-                      <Rewind className="w-9 h-9 text-rose-400 animate-pulse" />
-                    ) : (
-                      <FastForward className="w-9 h-9 text-rose-400 animate-pulse" />
-                    )
+            {/* Seek Swipe Top Floating Pill (No square box, clean floating pill) */}
+            {gestureHUD.type === 'seek-swipe' && (
+              <div className="absolute top-5 inset-x-0 flex items-center justify-center pointer-events-none z-35 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/80 backdrop-blur-md border border-white/10 text-white shadow-2xl">
+                  {(gestureHUD.seekDelta ?? 0) < 0 ? (
+                    <Rewind className="w-4 h-4 text-rose-400 animate-pulse" />
+                  ) : (
+                    <FastForward className="w-4 h-4 text-rose-400 animate-pulse" />
                   )}
-                  {gestureHUD.type === 'aspect' && <Scaling className="w-9 h-9 text-sky-400" />}
+                  <span className="font-mono text-sm font-extrabold text-white">
+                    {gestureHUD.value}
+                  </span>
+                  {gestureHUD.subValue && (
+                    <span className="font-mono text-xs text-rose-300 font-semibold pl-2 border-l border-white/20">
+                      {gestureHUD.subValue}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
-                  <span className="font-bold text-[11px] tracking-wider uppercase text-slate-300">
+            {/* Volume, Brightness, Screen Fit, Speed & Quick Seek Pills */}
+            {gestureHUD.type && gestureHUD.type !== 'seek-swipe' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-35 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center gap-3 bg-black/85 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/15 text-white shadow-2xl">
+                  {gestureHUD.type === 'brightness' && <Sun className="w-4 h-4 text-amber-400 animate-pulse" />}
+                  {gestureHUD.type === 'volume' && (isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4 text-rose-500" />)}
+                  {gestureHUD.type === 'seek-backward' && <RotateCcw className="w-4 h-4 text-rose-400" />}
+                  {gestureHUD.type === 'seek-forward' && <RotateCw className="w-4 h-4 text-rose-400" />}
+                  {gestureHUD.type === 'aspect' && <Scaling className="w-4 h-4 text-sky-400" />}
+                  {gestureHUD.type === 'speed' && <Gauge className="w-4 h-4 text-emerald-400" />}
+
+                  <span className="font-bold text-xs tracking-wider uppercase text-slate-300">
                     {gestureHUD.type === 'brightness'
                       ? 'Brightness'
                       : gestureHUD.type === 'volume'
                       ? 'Volume'
                       : gestureHUD.type === 'aspect'
                       ? 'Screen Fit'
-                      : 'Seek Position'}
+                      : gestureHUD.type === 'speed'
+                      ? 'Speed'
+                      : 'Seek'}
                   </span>
 
-                  <span className="font-mono text-base font-extrabold text-white">
+                  <span className="font-mono text-sm font-extrabold text-white">
                     {gestureHUD.value}
                   </span>
 
-                  {gestureHUD.subValue && (
-                    <span className="font-mono text-xs font-semibold text-rose-300 -mt-1">
-                      {gestureHUD.subValue}
-                    </span>
-                  )}
-
-                  {(gestureHUD.type === 'volume' || gestureHUD.type === 'brightness' || gestureHUD.type === 'seek-swipe') && (
-                    <div className="w-32 h-2 bg-white/20 rounded-full overflow-hidden mt-1 shadow-inner">
+                  {(gestureHUD.type === 'volume' || gestureHUD.type === 'brightness') && (
+                    <div className="w-16 h-1.5 bg-white/20 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-75 ${
-                          gestureHUD.type === 'brightness'
-                            ? 'bg-amber-400'
-                            : gestureHUD.type === 'volume'
-                            ? 'bg-rose-500'
-                            : 'bg-gradient-to-r from-rose-500 to-amber-400'
+                          gestureHUD.type === 'brightness' ? 'bg-amber-400' : 'bg-rose-500'
                         }`}
                         style={{
                           width: `${Math.max(0, Math.min(100, (gestureHUD.progress ?? 0) * 100))}%`
@@ -928,49 +1035,66 @@ export const SeriesDetail: React.FC = () => {
               </div>
             )}
 
-            {/* Video Controls Overlay - Auto-hides after 3 seconds of inactivity */}
+            {/* Video Controls Overlay - Auto-hides during playback, stays visible when paused */}
             <div
               onClick={(e) => {
                 if (e.target === e.currentTarget) {
                   e.stopPropagation();
-                  setShowControls(false);
-                  if (controlsTimeoutRef.current) {
-                    clearTimeout(controlsTimeoutRef.current);
-                    controlsTimeoutRef.current = null;
-                  }
+                  setShowControls((prev) => !prev);
+                  startControlsHideTimer();
                 } else {
                   startControlsHideTimer();
                 }
               }}
-              className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/70 flex flex-col justify-between p-3 transition-opacity duration-300 ${
+              className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/70 flex flex-col justify-between p-3 sm:p-4 transition-opacity duration-300 ${
                 showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
             >
               {/* Top Controls Bar */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleExitWithPiP();
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95 text-xs font-semibold border border-white/10"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95 text-xs font-semibold border border-white/10 shrink-0"
                     aria-label="Back"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     <span>Back</span>
                   </button>
 
+                  <div className="flex flex-col min-w-0 hidden xs:flex">
+                    <span className="text-white text-xs font-bold truncate max-w-[140px] sm:max-w-[240px] drop-shadow">
+                      {currentPlayingEpisode.title}
+                    </span>
+                    <span className="text-slate-400 text-[10px] truncate max-w-[140px] sm:max-w-[240px]">
+                      {currentSeries.title}
+                    </span>
+                  </div>
+
                   {isOfflinePlaying && (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-400 text-[10px] font-bold flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-400 text-[10px] font-bold flex items-center gap-1 shrink-0">
                       <HardDrive className="w-3 h-3" />
-                      <span>Offline Storage</span>
+                      <span>Offline</span>
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  {/* Playback Speed Toggle */}
+                  <button
+                    type="button"
+                    onClick={cyclePlaybackSpeed}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95 text-xs font-bold border border-white/15 transition shadow"
+                    title="Playback Speed"
+                  >
+                    <Gauge className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-[11px] font-bold font-mono">{playbackRate}x</span>
+                  </button>
+
                   {/* Stretch / Crop / Fit Toggle Option */}
                   <button
                     type="button"
@@ -987,56 +1111,44 @@ export const SeriesDetail: React.FC = () => {
                   <span className="px-2 py-0.5 rounded bg-rose-600 font-bold text-[10px] uppercase tracking-wider text-white">
                     S{activeSeason.seasonNumber}:E{currentPlayingEpisode.episodeNumber}
                   </span>
+
                   <button
                     type="button"
                     onClick={toggleMute}
                     className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95"
+                    title={isMuted ? 'Unmute' : 'Mute'}
                   >
                     {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Subtle Swipe Gesture Hints for Discoverability */}
-              <div className="flex items-center justify-center pointer-events-none">
-                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] text-slate-300 font-medium shadow-md">
-                  <span className="flex items-center gap-1 text-amber-300">
-                    <Sun className="w-3 h-3 text-amber-400" />
-                    <span>Left: Brightness</span>
-                  </span>
-                  <span className="text-white/30">•</span>
-                  <span className="flex items-center gap-1 text-rose-300">
-                    <Volume2 className="w-3 h-3 text-rose-400" />
-                    <span>Right: Volume</span>
-                  </span>
-                  <span className="text-white/30">•</span>
-                  <span className="flex items-center gap-1 text-sky-300">
-                    <FastForward className="w-3 h-3 text-sky-400" />
-                    <span>Swipe: Seek</span>
-                  </span>
-                </div>
-              </div>
-
-              {/* Center Play/Pause & Quick Seek Buttons */}
-              <div className="flex items-center justify-center gap-8">
+              {/* Center Play/Pause, Rewind, Forward, & Next Episode Buttons */}
+              <div className="flex items-center justify-center gap-6 sm:gap-8 my-auto">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleSeek(-10);
                   }}
-                  className="p-3 rounded-full bg-black/50 hover:bg-white/20 text-white active:scale-90 transition-transform"
+                  className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10"
+                  title="Rewind 10s"
                 >
-                  <RotateCcw className="w-5 h-5" />
-                  <span className="text-[9px] block font-mono">10s</span>
+                  <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <span className="text-[9px] font-mono mt-0.5 font-bold">10s</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handlePlayPause}
-                  className="p-4 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-xl shadow-rose-600/50 active:scale-90 transition-transform"
+                  className="p-4 sm:p-5 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-2xl shadow-rose-600/60 active:scale-90 transition-all border border-rose-400/30"
+                  title={isVideoPaused ? 'Play' : 'Pause'}
                 >
-                  {isVideoPaused ? <Play className="w-7 h-7 fill-current ml-0.5" /> : <Pause className="w-7 h-7 fill-current" />}
+                  {isVideoPaused ? (
+                    <Play className="w-8 h-8 sm:w-9 sm:h-9 fill-current ml-0.5" />
+                  ) : (
+                    <Pause className="w-8 h-8 sm:w-9 sm:h-9 fill-current" />
+                  )}
                 </button>
 
                 <button
@@ -1045,44 +1157,71 @@ export const SeriesDetail: React.FC = () => {
                     e.stopPropagation();
                     handleSeek(10);
                   }}
-                  className="p-3 rounded-full bg-black/50 hover:bg-white/20 text-white active:scale-90 transition-transform"
+                  className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10"
+                  title="Forward 10s"
                 >
-                  <RotateCw className="w-5 h-5" />
-                  <span className="text-[9px] block font-mono">10s</span>
+                  <RotateCw className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <span className="text-[9px] font-mono mt-0.5 font-bold">10s</span>
                 </button>
+
+                {activeSeason.episodes.findIndex((e) => e.id === currentPlayingEpisode.id) < activeSeason.episodes.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={playNextEpisode}
+                    className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10"
+                    title="Next Episode"
+                  >
+                    <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 text-rose-400" />
+                    <span className="text-[9px] font-mono mt-0.5 text-rose-300 font-bold">Next</span>
+                  </button>
+                )}
               </div>
 
-              {/* Bottom Progress Bar & Time */}
-              <div className="space-y-1.5">
+              {/* Bottom Progress Bar, Times, and Fullscreen */}
+              <div className="space-y-2">
                 <div
                   onClick={(e) => {
                     e.stopPropagation();
                     handleProgressBarClick(e);
                   }}
-                  className="w-full h-2 bg-white/20 hover:h-3 rounded-full cursor-pointer relative overflow-hidden transition-all"
+                  className="w-full h-2.5 bg-white/25 hover:h-3 rounded-full cursor-pointer relative overflow-hidden transition-all shadow-inner"
                 >
                   <div
-                    className="h-full bg-rose-600 rounded-full transition-all duration-100"
+                    className="h-full bg-rose-600 rounded-full transition-all duration-100 shadow-md"
                     style={{
                       width: `${duration ? (currentTime / duration) * 100 : 0}%`
                     }}
                   />
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] font-mono text-slate-300">
-                  <div className="flex items-center gap-1.5 truncate max-w-[70%]">
+                <div className="flex items-center justify-between text-xs font-mono text-slate-300">
+                  <div className="flex items-center gap-2">
                     <span className="text-white font-bold">{formatSeconds(currentTime)}</span>
                     <span className="text-slate-500">/</span>
                     <span>{formatSeconds(duration || currentPlayingEpisode.durationSeconds)}</span>
+
+                    {activeSeason.episodes.findIndex((e) => e.id === currentPlayingEpisode.id) < activeSeason.episodes.length - 1 && (
+                      <button
+                        type="button"
+                        onClick={playNextEpisode}
+                        className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600/70 hover:bg-rose-600 text-white text-[10px] font-sans font-bold transition active:scale-95 ml-2"
+                      >
+                        <span>Next Ep</span>
+                        <SkipForward className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={toggleFullscreen}
-                    className="p-1 rounded hover:text-white text-slate-300 active:scale-95"
-                  >
-                    {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={toggleFullscreen}
+                      className="p-1.5 rounded-lg bg-black/40 hover:bg-white/20 hover:text-white text-slate-300 active:scale-95 border border-white/10"
+                      title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen / Rotate Landscape'}
+                    >
+                      {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

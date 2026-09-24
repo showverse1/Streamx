@@ -28,7 +28,8 @@ html, body {
 }
 
 * {
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent !important;
+  outline: none !important;
   user-select: none;
 }
 
