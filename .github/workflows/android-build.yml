@@ -30,7 +30,11 @@ jobs:
 
       - name: Accept Android SDK Licenses
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          if command -v sdkmanager >/dev/null 2>&1; then
+            yes | sdkmanager --licenses || true
+          elif [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          fi
 
       - name: Install dependencies
         run: npm ci || npm install
@@ -52,7 +56,7 @@ jobs:
       - name: Build Android Release APK
         run: |
           cd android
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -62,7 +66,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload Release APK (Unsigned)
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: StreamX-Release-APK
