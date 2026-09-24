@@ -28,12 +28,14 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: Accept Android SDK Licenses
+      - name: Setup Android SDK Platform 36 & Licenses
         run: |
           if command -v sdkmanager >/dev/null 2>&1; then
             yes | sdkmanager --licenses || true
+            yes | sdkmanager "platforms;android-36" || true
           elif [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
             yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" || true
           fi
 
       - name: Install dependencies
