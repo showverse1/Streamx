@@ -6,22 +6,23 @@ import {
   Play,
   CheckCircle2,
   FolderDown,
-  Share2,
   FolderCheck,
   Smartphone,
-  ExternalLink,
-  Film
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { useAppStore } from '../store';
-import { DownloadItem } from '../types';
-import { exportVideoToPhoneStorage } from '../services/offlineStorage';
+import { DownloadItem, Series } from '../types';
+import { exportVideoToPhoneStorage, getOfflineStoragePathDescription } from '../services/offlineStorage';
 
 export const Downloads: React.FC = () => {
   const {
+    series,
     downloads,
     downloadProgress,
     deleteDownload,
     openSeriesWithEpisode,
+    triggerDownloadWithProgress,
     setCurrentTab,
     haptic
   } = useAppStore();
@@ -30,8 +31,70 @@ export const Downloads: React.FC = () => {
 
   const handlePlayDownloaded = (item: DownloadItem) => {
     haptic(50);
-    // Open the series directly with the video player playing this offline episode
+    // Ensure series metadata exists in store for offline playback
+    const exists = series.some((s) => s.id === item.seriesId);
+    if (!exists) {
+      const fallbackSeries: Series = {
+        id: item.seriesId,
+        title: item.seriesTitle,
+        thumbnailUrl: item.thumbnailUrl,
+        bannerUrl: item.thumbnailUrl,
+        category: 'Downloaded',
+        rating: '10',
+        year: new Date(item.downloadDate).getFullYear(),
+        description: 'Saved offline episode ready for playback with zero internet.',
+        tags: ['Offline', 'Downloaded'],
+        uploadTimestamp: item.downloadDate,
+        seasons: [
+          {
+            seasonNumber: item.seasonNum,
+            title: `Season ${item.seasonNum}`,
+            episodes: [
+              {
+                id: item.id,
+                episodeNumber: item.episodeNum,
+                title: item.episodeTitle,
+                duration: 'Offline',
+                durationSeconds: 3600,
+                videoUrl: item.videoUrl,
+                thumbnailUrl: item.thumbnailUrl,
+                description: 'Offline Video File'
+              }
+            ]
+          }
+        ]
+      };
+      useAppStore.setState({ series: [fallbackSeries, ...series] });
+    }
     openSeriesWithEpisode(item.seriesId, item.seasonNum, item.episodeNum);
+  };
+
+  const handleRetryDownload = (item: DownloadItem) => {
+    haptic(40);
+    const matchedSeries = series.find((s) => s.id === item.seriesId) || {
+      id: item.seriesId,
+      title: item.seriesTitle,
+      thumbnailUrl: item.thumbnailUrl,
+      category: 'Downloads',
+      rating: '10',
+      year: new Date().getFullYear(),
+      description: 'Downloaded content',
+      tags: ['Offline'],
+      uploadTimestamp: Date.now(),
+      seasons: []
+    } as Series;
+
+    const episode = {
+      id: item.id,
+      episodeNumber: item.episodeNum,
+      title: item.episodeTitle,
+      duration: 'Offline',
+      durationSeconds: 3600,
+      videoUrl: item.videoUrl,
+      thumbnailUrl: item.thumbnailUrl
+    };
+
+    triggerDownloadWithProgress(matchedSeries, item.seasonNum, episode);
   };
 
   const handleExportToDisk = async (item: DownloadItem) => {
@@ -65,7 +128,9 @@ export const Downloads: React.FC = () => {
             </div>
             <div>
               <h3 className="font-extrabold text-sm text-white">App Offline Storage Folder</h3>
-              <p className="text-[10px] text-slate-400 font-mono">StreamX/Media/Offline/</p>
+              <p className="text-[10px] text-slate-400 font-mono truncate max-w-[200px]" title={getOfflineStoragePathDescription()}>
+                {getOfflineStoragePathDescription()}
+              </p>
             </div>
           </div>
           <span className="text-xs font-mono font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
@@ -198,14 +263,36 @@ export const Downloads: React.FC = () => {
                     <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 font-mono">
                       <span>{item.fileSize}</span>
                       <span>•</span>
-                      <span className="text-emerald-400 flex items-center gap-0.5">
-                        <CheckCircle2 className="w-2.5 h-2.5" /> Offline
-                      </span>
+                      {item.status === 'error' ? (
+                        <span className="text-amber-400 flex items-center gap-0.5">
+                          <AlertCircle className="w-2.5 h-2.5" /> Retry Needed
+                        </span>
+                      ) : item.status === 'downloading' ? (
+                        <span className="text-sky-400 flex items-center gap-0.5 animate-pulse">
+                          <Download className="w-2.5 h-2.5" /> Downloading...
+                        </span>
+                      ) : (
+                        <span className="text-emerald-400 flex items-center gap-0.5">
+                          <CheckCircle2 className="w-2.5 h-2.5" /> Offline File
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Retry if error */}
+                  {item.status === 'error' && (
+                    <button
+                      type="button"
+                      onClick={() => handleRetryDownload(item)}
+                      className="p-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/40 shadow-md active:scale-95 transition-all"
+                      title="Retry Download"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
                   {/* Play offline */}
                   <button
                     type="button"

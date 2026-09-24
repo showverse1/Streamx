@@ -46,7 +46,7 @@ const SAMPLE_BULK_JSON: Series[] = [
             title: 'Full Movie (HD)',
             duration: '02:15:00',
             durationSeconds: 8100,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            videoUrl: 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80',
             description: 'The journey beyond the known universe begins.'
           }
@@ -76,7 +76,7 @@ const SAMPLE_BULK_JSON: Series[] = [
             title: 'Episode 1: The Midnight Call',
             duration: '42:30',
             durationSeconds: 2550,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+            videoUrl: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
             description: 'A mysterious phone call triggers a midnight investigation.'
           },
@@ -86,7 +86,7 @@ const SAMPLE_BULK_JSON: Series[] = [
             title: 'Episode 2: The Alleyway Chase',
             duration: '38:15',
             durationSeconds: 2295,
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+            videoUrl: 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4',
             thumbnailUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80',
             description: 'Hot pursuit across the wet downtown rooftops.'
           }

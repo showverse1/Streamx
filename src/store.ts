@@ -471,7 +471,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().haptic(50);
     const downloadId = `${series.id}_s${seasonNum}_e${episode.episodeNumber}`;
 
-    // 1. Save preliminary download record
+    // 1. Ensure series is cached for offline mode
+    try {
+      const cached = storage.getCachedSeries();
+      if (!cached.some((s) => s.id === series.id)) {
+        storage.saveCachedSeries([series, ...cached]);
+      }
+    } catch (_) {}
+
+    // 2. Save preliminary download record
     const item: DownloadItem = {
       id: downloadId,
       seriesId: series.id,
@@ -483,13 +491,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       fileSize: `${Math.floor(episode.durationSeconds * 0.42)} MB`,
       quality: '1080p FHD',
       downloadDate: Date.now(),
-      videoUrl: episode.videoUrl
+      videoUrl: episode.videoUrl,
+      status: 'downloading',
+      isOfflineReady: false
     };
 
     const currentDownloads = storage.saveDownload(item);
     set({ downloads: currentDownloads });
 
-    // 2. Start offline streaming download into IndexedDB
+    // 3. Start offline streaming download into device storage
     set((state) => ({
       downloadProgress: {
         ...state.downloadProgress,
@@ -514,9 +524,32 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       if (res.success) {
         get().haptic(70);
+        const completedItem: DownloadItem = {
+          ...item,
+          status: 'completed',
+          isOfflineReady: true,
+          localFilePath: res.offlineUrl || item.localFilePath
+        };
+        const updated = storage.saveDownload(completedItem);
+        set({ downloads: updated });
+      } else {
+        const errorItem: DownloadItem = {
+          ...item,
+          status: 'error',
+          isOfflineReady: false
+        };
+        const updated = storage.saveDownload(errorItem);
+        set({ downloads: updated });
       }
     } catch (e) {
       console.warn('Offline download progress note:', e);
+      const errorItem: DownloadItem = {
+        ...item,
+        status: 'error',
+        isOfflineReady: false
+      };
+      const updated = storage.saveDownload(errorItem);
+      set({ downloads: updated });
     } finally {
       // Clear progress indicator after short delay
       setTimeout(() => {

@@ -25,7 +25,7 @@ import {
   Gauge
 } from 'lucide-react';
 import { useAppStore } from '../store';
-import { Episode } from '../types';
+import { Episode, Series, Season } from '../types';
 import { getOfflineVideoPlaybackUrl } from '../services/offlineStorage';
 import { sanitizeVideoUrl } from '../services/videoUtils';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
@@ -49,8 +49,45 @@ export const SeriesDetail: React.FC = () => {
   } = useAppStore();
 
   const currentSeries = useMemo(() => {
-    return series.find((s) => s.id === selectedSeriesId);
-  }, [series, selectedSeriesId]);
+    const found = series.find((s) => s.id === selectedSeriesId);
+    if (found) return found;
+
+    // Offline fallback if app booted without internet
+    const matchingDownload = downloads.find((d) => d.seriesId === selectedSeriesId);
+    if (matchingDownload) {
+      return {
+        id: matchingDownload.seriesId,
+        title: matchingDownload.seriesTitle,
+        thumbnailUrl: matchingDownload.thumbnailUrl,
+        bannerUrl: matchingDownload.thumbnailUrl,
+        category: 'Downloaded',
+        rating: '10',
+        year: new Date(matchingDownload.downloadDate).getFullYear(),
+        description: 'Saved offline title ready for playback with zero internet.',
+        tags: ['Offline', 'Downloaded'],
+        uploadTimestamp: matchingDownload.downloadDate,
+        seasons: [
+          {
+            seasonNumber: matchingDownload.seasonNum,
+            title: `Season ${matchingDownload.seasonNum}`,
+            episodes: downloads
+              .filter((d) => d.seriesId === matchingDownload.seriesId)
+              .map((d) => ({
+                id: d.id,
+                episodeNumber: d.episodeNum,
+                title: d.episodeTitle,
+                duration: 'Offline',
+                durationSeconds: 3600,
+                videoUrl: d.videoUrl,
+                thumbnailUrl: d.thumbnailUrl,
+                description: 'Offline Video File'
+              }))
+          }
+        ]
+      } as Series;
+    }
+    return undefined;
+  }, [series, selectedSeriesId, downloads]);
 
   const [activeSeasonNum, setActiveSeasonNum] = useState<number>(1);
   const [isPlayingInline, setIsPlayingInline] = useState<boolean>(true);

@@ -1,13 +1,19 @@
 /**
- * StreamX Native Offline Video Storage Engine
- * Uses IndexedDB to store full video Blobs on the user's device for 100% offline playback.
+ * StreamX Offline Video Storage Engine
+ * Handles 100% offline video downloads and playback:
+ * - On Android APK (Native Capacitor): Uses @capacitor/filesystem to download real MP4 files
+ *   directly to the app's local offline folder (bypassing browser CORS completely).
+ * - On Web / PWA: Uses IndexedDB with streaming chunks for offline playback.
  */
 
-import { Series, Season, Episode, DownloadItem } from '../types';
+import { Filesystem, Directory, ProgressStatus } from '@capacitor/filesystem';
+import { Capacitor } from '@capacitor/core';
+import { Series, Episode } from '../types';
 
 const DB_NAME = 'StreamX_Offline_DB';
 const DB_VERSION = 1;
 const STORE_NAME = 'offline_videos';
+const OFFLINE_FOLDER = 'StreamX/Videos';
 
 export interface OfflineVideoRecord {
   id: string;
@@ -19,17 +25,29 @@ export interface OfflineVideoRecord {
   thumbnailUrl: string;
   fileSize: string;
   sizeBytes: number;
-  blob: Blob;
+  blob?: Blob;
   mimeType: string;
   downloadDate: number;
   videoUrl: string;
+  localPath?: string;
+  nativeUri?: string;
 }
 
-// Global active blob URLs map for cleanup
-const activeBlobUrls = new Map<string, string>();
+// Global active blob or file URLs map
+const activePlaybackUrls = new Map<string, string>();
 
 /**
- * Open or upgrade the IndexedDB database
+ * Returns human-readable storage path for UI display
+ */
+export function getOfflineStoragePathDescription(): string {
+  if (Capacitor.isNativePlatform()) {
+    return 'Android/data/com.streamx.app/files/StreamX/Videos/';
+  }
+  return 'App Local Storage (StreamX/OfflineDB)';
+}
+
+/**
+ * Open or upgrade the IndexedDB database (used on Web and for metadata sync)
  */
 export function openOfflineDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -55,18 +73,22 @@ export function openOfflineDB(): Promise<IDBDatabase> {
 }
 
 /**
- * Store a complete video blob with its metadata in device IndexedDB
+ * Store a complete video record in device IndexedDB
  */
 export async function saveOfflineVideo(record: OfflineVideoRecord): Promise<void> {
-  const db = await openOfflineDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.put(record);
+  try {
+    const db = await openOfflineDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.put(record);
 
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.warn('IndexedDB save warning (non-fatal):', e);
+  }
 }
 
 /**
@@ -89,9 +111,32 @@ export async function getOfflineVideo(id: string): Promise<OfflineVideoRecord | 
 }
 
 /**
+ * Helper to construct standard file path for an episode
+ */
+function getRelativeVideoPath(downloadId: string): string {
+  const safeId = downloadId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `${OFFLINE_FOLDER}/${safeId}.mp4`;
+}
+
+/**
  * Check if a specific episode video is already stored offline
  */
 export async function isVideoStoredOffline(id: string): Promise<boolean> {
+  // 1. Check native filesystem if running on Android
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const path = getRelativeVideoPath(id);
+      const stat = await Filesystem.stat({
+        path,
+        directory: Directory.Data
+      });
+      if (stat && stat.size > 0) return true;
+    } catch {
+      // Not on native filesystem
+    }
+  }
+
+  // 2. Check IndexedDB
   try {
     const db = await openOfflineDB();
     return new Promise((resolve) => {
@@ -107,33 +152,76 @@ export async function isVideoStoredOffline(id: string): Promise<boolean> {
 }
 
 /**
- * Get an offline object URL for playing the video without internet
+ * Get an offline URL for playing the video without internet
+ * On Android: returns Capacitor convertFileSrc URL (plays directly from app storage)
+ * On Web: returns cached Blob URL
  */
 export async function getOfflineVideoPlaybackUrl(id: string): Promise<string | null> {
-  if (activeBlobUrls.has(id)) {
-    return activeBlobUrls.get(id)!;
+  if (activePlaybackUrls.has(id)) {
+    return activePlaybackUrls.get(id)!;
   }
 
+  // 1. Native platform check (Android APK)
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const path = getRelativeVideoPath(id);
+      const stat = await Filesystem.stat({
+        path,
+        directory: Directory.Data
+      });
+
+      if (stat && stat.size > 0) {
+        const uriResult = await Filesystem.getUri({
+          path,
+          directory: Directory.Data
+        });
+        const convertedSrc = Capacitor.convertFileSrc(uriResult.uri);
+        activePlaybackUrls.set(id, convertedSrc);
+        return convertedSrc;
+      }
+    } catch (e) {
+      console.warn('Native file check for playback note:', e);
+    }
+  }
+
+  // 2. Web IndexedDB check
   const record = await getOfflineVideo(id);
-  if (!record || !record.blob) {
-    return null;
+  if (record?.blob) {
+    const url = URL.createObjectURL(record.blob);
+    activePlaybackUrls.set(id, url);
+    return url;
   }
 
-  const url = URL.createObjectURL(record.blob);
-  activeBlobUrls.set(id, url);
-  return url;
+  return null;
 }
 
 /**
- * Delete an offline video from IndexedDB
+ * Delete an offline video from device storage
  */
 export async function deleteOfflineVideo(id: string): Promise<void> {
   try {
-    if (activeBlobUrls.has(id)) {
-      URL.revokeObjectURL(activeBlobUrls.get(id)!);
-      activeBlobUrls.delete(id);
+    if (activePlaybackUrls.has(id)) {
+      const url = activePlaybackUrls.get(id)!;
+      if (url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+      activePlaybackUrls.delete(id);
     }
 
+    // 1. If native Android, delete file from app directory
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const path = getRelativeVideoPath(id);
+        await Filesystem.deleteFile({
+          path,
+          directory: Directory.Data
+        });
+      } catch (err) {
+        console.warn('Native delete notice:', err);
+      }
+    }
+
+    // 2. Delete from IndexedDB
     const db = await openOfflineDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -148,7 +236,7 @@ export async function deleteOfflineVideo(id: string): Promise<void> {
 }
 
 /**
- * List all saved offline videos (metadata only, without holding heavy blobs in memory)
+ * List all saved offline videos (metadata only)
  */
 export async function getAllOfflineVideos(): Promise<Omit<OfflineVideoRecord, 'blob'>[]> {
   try {
@@ -159,8 +247,7 @@ export async function getAllOfflineVideos(): Promise<Omit<OfflineVideoRecord, 'b
       const req = store.getAll();
 
       req.onsuccess = () => {
-        const list = req.result || [];
-        // Strip heavy blob field for UI list rendering
+        const list = (req.result || []) as OfflineVideoRecord[];
         const sanitized = list.map(({ blob, ...rest }) => rest);
         resolve(sanitized);
       };
@@ -172,7 +259,9 @@ export async function getAllOfflineVideos(): Promise<Omit<OfflineVideoRecord, 'b
 }
 
 /**
- * Download a video into the app's offline storage folder with live progress
+ * Download an episode into the app's offline storage folder with live progress:
+ * - On Native Android (Capacitor): Uses Filesystem.downloadFile into app's private folder
+ * - On Web / Browser: Uses chunked fetch + IndexedDB Blob storage
  */
 export async function downloadEpisodeToAppFolder(
   series: Series,
@@ -187,8 +276,115 @@ export async function downloadEpisodeToAppFolder(
     return { success: false, error: 'Video URL is missing for this episode.' };
   }
 
+  // ==========================================
+  // 1. NATIVE ANDROID DOWNLOAD (Capacitor)
+  // ==========================================
+  if (Capacitor.isNativePlatform()) {
+    try {
+      if (onProgress) onProgress(5, 0, 0);
+
+      const targetPath = getRelativeVideoPath(downloadId);
+
+      // Create folder if not exists
+      try {
+        await Filesystem.mkdir({
+          path: OFFLINE_FOLDER,
+          directory: Directory.Data,
+          recursive: true
+        });
+      } catch {
+        // Folder may already exist
+      }
+
+      // Track progress via native listener
+      let progressListenerHandle: { remove: () => Promise<void> } | null = null;
+      try {
+        progressListenerHandle = await Filesystem.addListener(
+          'progress',
+          (status: ProgressStatus) => {
+            if (status.url === videoUrl || !status.url) {
+              const loadedMB = parseFloat((status.bytes / (1024 * 1024)).toFixed(1));
+              const totalMB = status.contentLength > 0
+                ? parseFloat((status.contentLength / (1024 * 1024)).toFixed(1))
+                : 0;
+              const pct = totalMB > 0
+                ? Math.min(99, Math.round((status.bytes / status.contentLength) * 100))
+                : 50;
+
+              if (onProgress) {
+                onProgress(pct, loadedMB, totalMB);
+              }
+            }
+          }
+        );
+      } catch (err) {
+        console.warn('Progress listener attach note:', err);
+      }
+
+      // Perform real native file download directly from server to Android disk
+      await Filesystem.downloadFile({
+        path: targetPath,
+        directory: Directory.Data,
+        url: videoUrl,
+        recursive: true,
+        progress: true
+      });
+
+      if (progressListenerHandle) {
+        await progressListenerHandle.remove().catch(() => {});
+      }
+
+      // Verify downloaded file size
+      const stat = await Filesystem.stat({
+        path: targetPath,
+        directory: Directory.Data
+      });
+
+      const uriResult = await Filesystem.getUri({
+        path: targetPath,
+        directory: Directory.Data
+      });
+
+      const finalSizeMB = (stat.size / (1024 * 1024)).toFixed(1);
+      const offlineUrl = Capacitor.convertFileSrc(uriResult.uri);
+      activePlaybackUrls.set(downloadId, offlineUrl);
+
+      // Save metadata record
+      const record: OfflineVideoRecord = {
+        id: downloadId,
+        seriesId: series.id,
+        seasonNum,
+        episodeNum: episode.episodeNumber,
+        seriesTitle: series.title,
+        episodeTitle: episode.title,
+        thumbnailUrl: episode.thumbnailUrl || series.thumbnailUrl,
+        fileSize: `${finalSizeMB} MB`,
+        sizeBytes: stat.size,
+        mimeType: 'video/mp4',
+        downloadDate: Date.now(),
+        videoUrl,
+        localPath: targetPath,
+        nativeUri: uriResult.uri
+      };
+
+      await saveOfflineVideo(record);
+
+      if (onProgress) {
+        onProgress(100, parseFloat(finalSizeMB), parseFloat(finalSizeMB));
+      }
+
+      return { success: true, offlineUrl };
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Native download failed';
+      console.error('Android native download error:', errorMsg);
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  // ==========================================
+  // 2. WEB / PWA DOWNLOAD (IndexedDB Blob)
+  // ==========================================
   try {
-    // Notify starting
     if (onProgress) onProgress(5, 0, 0);
 
     const response = await fetch(videoUrl, {
@@ -229,7 +425,6 @@ export async function downloadEpisodeToAppFolder(
 
       blob = new Blob(chunks as unknown as BlobPart[], { type: response.headers.get('content-type') || 'video/mp4' });
     } else {
-      // Fallback for servers without Content-Length
       if (onProgress) onProgress(50, 0, 0);
       blob = await response.blob();
     }
@@ -252,57 +447,82 @@ export async function downloadEpisodeToAppFolder(
       videoUrl
     };
 
-    // Save into device IndexedDB
     await saveOfflineVideo(record);
 
     if (onProgress) onProgress(100, parseFloat(finalSizeMB), parseFloat(finalSizeMB));
 
     const offlineUrl = URL.createObjectURL(blob);
-    activeBlobUrls.set(downloadId, offlineUrl);
+    activePlaybackUrls.set(downloadId, offlineUrl);
 
     return { success: true, offlineUrl };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Download failed';
-    console.warn('Direct stream fetch notice:', errorMsg);
+    console.warn('Web video download notice:', errorMsg);
 
-    // Fallback: If CORS prevented direct fetch, save offline metadata
-    // and provide direct device download link
+    // If browser CORS prevented background fetch, trigger direct browser download link
+    const isCorsError = errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError');
+    if (isCorsError) {
+      try {
+        const link = document.createElement('a');
+        link.href = videoUrl;
+        link.target = '_blank';
+        link.download = `${series.title}_S${seasonNum}_E${episode.episodeNumber}.mp4`.replace(/[^a-zA-Z0-9._-]/g, '_');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (_) {}
+    }
+
     return {
       success: false,
-      error: errorMsg.includes('Failed to fetch')
-        ? 'Network or CORS restriction on video CDN. Saved as streaming bookmark.'
+      error: isCorsError
+        ? 'Direct browser download initiated. File will be saved to your device Downloads folder.'
         : errorMsg
     };
   }
 }
 
 /**
- * Save / Export downloaded video directly to Android phone's Downloads folder
+ * Save / Export downloaded video directly to Android phone's Downloads or Documents folder
  */
 export async function exportVideoToPhoneStorage(
   downloadId: string,
   preferredFileName?: string
 ): Promise<boolean> {
   try {
-    const record = await getOfflineVideo(downloadId);
-    let blob = record?.blob;
+    const cleanName = (preferredFileName || `StreamX_${downloadId}.mp4`).replace(/[^a-zA-Z0-9._-]/g, '_');
 
-    if (!blob) {
-      return false;
+    // 1. Native platform export
+    if (Capacitor.isNativePlatform()) {
+      const srcPath = getRelativeVideoPath(downloadId);
+      try {
+        await Filesystem.copy({
+          from: srcPath,
+          directory: Directory.Data,
+          to: cleanName,
+          toDirectory: Directory.Documents
+        });
+        return true;
+      } catch (e) {
+        console.warn('Native copy to documents notice:', e);
+      }
     }
 
-    const fileName = (preferredFileName || `${record?.seriesTitle || 'StreamX'}_E${record?.episodeNum || 1}.mp4`)
-      .replace(/[^a-zA-Z0-9._-]/g, '_');
+    // 2. Web export
+    const record = await getOfflineVideo(downloadId);
+    if (record?.blob) {
+      const blobUrl = URL.createObjectURL(record.blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = cleanName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      return true;
+    }
 
-    const blobUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-    return true;
+    return false;
   } catch (err) {
     console.error('Failed to export video to phone storage', err);
     return false;

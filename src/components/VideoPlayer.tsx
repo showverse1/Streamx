@@ -12,10 +12,12 @@ import {
   Maximize,
   Minimize,
   SkipForward,
-  Scaling
+  Scaling,
+  HardDrive
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { sanitizeVideoUrl } from '../services/videoUtils';
+import { getOfflineVideoPlaybackUrl } from '../services/offlineStorage';
 
 export const VideoPlayer: React.FC = () => {
   const { activePlayback, stopPlayback, startPlayback, recordEpisodeWatch, haptic } = useAppStore();
@@ -34,6 +36,7 @@ export const VideoPlayer: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPiPActive, setIsPiPActive] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const [isOfflinePlaying, setIsOfflinePlaying] = useState(false);
   const [activeVideoUrl, setActiveVideoUrl] = useState(sanitizeVideoUrl(activePlayback?.episode.videoUrl) || '');
 
   // Aspect Ratio Mode: 'fit' (16:9 contain), 'stretch' (fill container), 'crop' (cover/zoom)
@@ -44,11 +47,27 @@ export const VideoPlayer: React.FC = () => {
   const rippleTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (activePlayback?.episode.videoUrl) {
-      setActiveVideoUrl(sanitizeVideoUrl(activePlayback.episode.videoUrl));
+    if (!activePlayback?.episode) return;
+
+    let isMounted = true;
+    const downloadId = `${activePlayback.series.id}_s${activePlayback.seasonNum}_e${activePlayback.episode.episodeNumber}`;
+
+    getOfflineVideoPlaybackUrl(downloadId).then((offlineUrl) => {
+      if (!isMounted) return;
+      if (offlineUrl) {
+        setActiveVideoUrl(offlineUrl);
+        setIsOfflinePlaying(true);
+      } else if (activePlayback.episode.videoUrl) {
+        setActiveVideoUrl(sanitizeVideoUrl(activePlayback.episode.videoUrl));
+        setIsOfflinePlaying(false);
+      }
       setVideoError(false);
-    }
-  }, [activePlayback?.episode.id, activePlayback?.episode.videoUrl]);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activePlayback?.series.id, activePlayback?.seasonNum, activePlayback?.episode.id, activePlayback?.episode.videoUrl]);
 
   const handleVideoError = () => {
     console.warn('Video source playback error for:', activeVideoUrl);
@@ -573,9 +592,16 @@ export const VideoPlayer: React.FC = () => {
               <h2 className="text-white font-bold text-sm tracking-tight truncate drop-shadow">
                 {series.title}
               </h2>
-              <p className="text-slate-300 text-xs truncate">
-                S{seasonNum} : E{episode.episodeNumber} - {episode.title}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-slate-300 text-xs truncate">
+                  S{seasonNum} : E{episode.episodeNumber} - {episode.title}
+                </p>
+                {isOfflinePlaying && (
+                  <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[10px] font-bold shrink-0 flex items-center gap-1">
+                    <HardDrive className="w-2.5 h-2.5" /> Offline File
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
