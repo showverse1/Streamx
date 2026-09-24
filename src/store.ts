@@ -17,6 +17,7 @@ import {
 } from './firebase';
 import { storage } from './storage';
 import { downloadEpisodeToAppFolder, deleteOfflineVideo } from './services/offlineStorage';
+import { sanitizeVideoUrl } from './services/videoUtils';
 
 export interface ActivePlayback {
   series: Series;
@@ -324,8 +325,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await fetchSeriesData();
-      storage.saveCachedSeries(data);
-      set({ series: data, isLoading: false });
+      const sanitizedData = data.map((item) => ({
+        ...item,
+        seasons: (item.seasons || []).map((s) => ({
+          ...s,
+          episodes: (s.episodes || []).map((ep) => ({
+            ...ep,
+            videoUrl: sanitizeVideoUrl(ep.videoUrl)
+          }))
+        }))
+      }));
+      storage.saveCachedSeries(sanitizedData);
+      set({ series: sanitizedData, isLoading: false });
     } catch (err: unknown) {
       set({
         error: err instanceof Error ? err.message : 'Failed to fetch series catalog',

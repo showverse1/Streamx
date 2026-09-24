@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Play, Pause, Maximize2, X, Pipette, ExternalLink } from 'lucide-react';
 import { useAppStore } from '../store';
 import { getOfflineVideoPlaybackUrl } from '../services/offlineStorage';
+import { sanitizeVideoUrl } from '../services/videoUtils';
 
 export const MiniPlayer: React.FC = () => {
   const {
@@ -34,7 +35,7 @@ export const MiniPlayer: React.FC = () => {
 
     getOfflineVideoPlaybackUrl(downloadId).then((offlineUrl) => {
       if (isMounted) {
-        setEffectiveSrc(offlineUrl || miniPlayer.episode.videoUrl);
+        setEffectiveSrc(offlineUrl || sanitizeVideoUrl(miniPlayer.episode.videoUrl));
       }
     });
 

@@ -27,6 +27,7 @@ import {
 import { useAppStore } from '../store';
 import { Episode } from '../types';
 import { getOfflineVideoPlaybackUrl } from '../services/offlineStorage';
+import { sanitizeVideoUrl } from '../services/videoUtils';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { StatusBar } from '@capacitor/status-bar';
 
@@ -90,7 +91,7 @@ export const SeriesDetail: React.FC = () => {
     seekDelta: number;
   } | null>(null);
 
-  const lastTapRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number; y: number; side: 'left' | 'right' } | null>(null);
   const singleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isPointerDownRef = useRef<boolean>(false);
 
@@ -144,7 +145,7 @@ export const SeriesDetail: React.FC = () => {
       setIsPlayingInline(true);
       setIsVideoPaused(false);
       if (targetEpisode.videoUrl) {
-        setActiveVideoUrl(targetEpisode.videoUrl);
+        setActiveVideoUrl(sanitizeVideoUrl(targetEpisode.videoUrl));
       }
       recordEpisodeWatch(currentSeries, targetSeasonNum, targetEpisode, 0);
     }
@@ -163,7 +164,7 @@ export const SeriesDetail: React.FC = () => {
         setActiveVideoUrl(offlineUrl);
         setIsOfflinePlaying(true);
       } else if (currentPlayingEpisode.videoUrl) {
-        setActiveVideoUrl(currentPlayingEpisode.videoUrl);
+        setActiveVideoUrl(sanitizeVideoUrl(currentPlayingEpisode.videoUrl));
         setIsOfflinePlaying(false);
       }
       setVideoError(false);
@@ -219,18 +220,25 @@ export const SeriesDetail: React.FC = () => {
   };
 
   const handleVideoError = () => {
-    console.warn('Video playback error, switching to verified backup CDN mirror...');
-    const fallbacks = [
-      'https://media.w3.org/2010/05/sintel/trailer.mp4',
-      'https://vjs.zencdn.net/v/oceans.mp4',
-      'https://media.w3.org/2010/05/bunny/trailer.mp4'
-    ];
-    const nextFallback = fallbacks.find((url) => url !== activeVideoUrl);
-    if (nextFallback) {
-      setActiveVideoUrl(nextFallback);
-    } else {
-      setVideoError(true);
-    }
+    console.warn('Playback error for uploaded video stream:', activeVideoUrl);
+    // Never silently replace the user's video with dummy AI animations!
+    setVideoError(true);
+    setIsBuffering(false);
+  };
+
+  const handleReloadVideo = () => {
+    if (!currentPlayingEpisode) return;
+    setVideoError(false);
+    setIsBuffering(true);
+    const cleaned = sanitizeVideoUrl(currentPlayingEpisode.videoUrl);
+    setActiveVideoUrl('');
+    setTimeout(() => {
+      setActiveVideoUrl(cleaned);
+      if (videoRef.current) {
+        videoRef.current.load();
+        videoRef.current.play().catch(() => {});
+      }
+    }, 50);
   };
 
   // Sync active season
@@ -480,8 +488,20 @@ export const SeriesDetail: React.FC = () => {
     if (!videoRef.current) return;
     haptic(30);
     startControlsHideTimer();
-    const target = Math.max(0, Math.min(videoRef.current.currentTime + seconds, duration));
-    videoRef.current.currentTime = target;
+    const vid = videoRef.current;
+    const current = vid.currentTime || currentTime || 0;
+    const dur = vid.duration && !isNaN(vid.duration) && isFinite(vid.duration) && vid.duration > 0
+      ? vid.duration
+      : (duration > 0 ? duration : 0);
+
+    let target = current + seconds;
+    if (dur > 0) {
+      target = Math.max(0, Math.min(target, dur));
+    } else {
+      target = Math.max(0, target);
+    }
+
+    vid.currentTime = target;
     setCurrentTime(target);
   };
 
@@ -746,37 +766,47 @@ export const SeriesDetail: React.FC = () => {
       return;
     }
 
-    // Process tap candidates (Single or Double tap)
-    const x = tracker.startX;
-    const lastTap = lastTapRef.current;
-    if (lastTap && (now - lastTap.time) < 320 && Math.abs(x - lastTap.x) < 55) {
+    touchStartRef.current = null;
+  };
+
+  // Dedicated YouTube-style Double Tap / Click coordinator
+  const performDoubleTapSeek = (side: 'left' | 'right') => {
+    haptic(45);
+    if (side === 'right') {
+      handleSeek(10);
+      triggerRipple('right');
+      triggerHUD('seek-forward', '+10s', { autoHideMs: 1000 });
+    } else {
+      handleSeek(-10);
+      triggerRipple('left');
+      triggerHUD('seek-backward', '-10s', { autoHideMs: 1000 });
+    }
+  };
+
+  const handlePointerZoneClick = (side: 'left' | 'right', clientX: number, clientY: number) => {
+    const now = Date.now();
+    const last = lastTapRef.current;
+
+    // Detect double click / double tap (within 380ms on same side or nearby)
+    if (last && (now - last.time) < 380 && (last.side === side || Math.abs(clientX - last.x) < 120)) {
       if (singleTapTimeoutRef.current) {
         clearTimeout(singleTapTimeoutRef.current);
         singleTapTimeoutRef.current = null;
       }
       lastTapRef.current = null;
-
-      if (x > containerRect.width * 0.55) {
-        handleSeek(10);
-        triggerRipple('right');
-        triggerHUD('seek-forward', '+10s');
-      } else if (x < containerRect.width * 0.45) {
-        handleSeek(-10);
-        triggerRipple('left');
-        triggerHUD('seek-backward', '-10s');
-      } else {
-        handlePlayPause();
-      }
-    } else {
-      lastTouchEndTimestamp.current = now;
-      lastTapRef.current = { x, y: tracker.startY, time: now };
-      if (singleTapTimeoutRef.current) clearTimeout(singleTapTimeoutRef.current);
-      singleTapTimeoutRef.current = setTimeout(() => {
-        handleScreenTap();
-      }, 260);
+      performDoubleTapSeek(side);
+      return;
     }
 
-    touchStartRef.current = null;
+    // First tap candidate: wait 260ms before toggling controls overlay
+    lastTapRef.current = { time: now, x: clientX, y: clientY, side };
+    if (singleTapTimeoutRef.current) {
+      clearTimeout(singleTapTimeoutRef.current);
+    }
+    singleTapTimeoutRef.current = setTimeout(() => {
+      lastTapRef.current = null;
+      handleScreenTap();
+    }, 260);
   };
 
   // Touch handlers
@@ -819,21 +849,19 @@ export const SeriesDetail: React.FC = () => {
     }
   };
 
-  // Mouse Double Click handler (Desktop/Browser support)
+  // Mouse Double Click handler (Desktop/Browser native fallback)
   const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (singleTapTimeoutRef.current) {
+      clearTimeout(singleTapTimeoutRef.current);
+      singleTapTimeoutRef.current = null;
+    }
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    if (x > rect.width * 0.55) {
-      handleSeek(10);
-      triggerRipple('right');
-      triggerHUD('seek-forward', '+10s');
-    } else if (x < rect.width * 0.45) {
-      handleSeek(-10);
-      triggerRipple('left');
-      triggerHUD('seek-backward', '-10s');
-    } else {
-      handlePlayPause();
-    }
+    const width = rect.width || 360;
+    const side: 'left' | 'right' = x > width * 0.5 ? 'right' : 'left';
+    performDoubleTapSeek(side);
   };
 
   useEffect(() => {
@@ -871,7 +899,6 @@ export const SeriesDetail: React.FC = () => {
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseLeave}
             onDoubleClick={handleDoubleClick}
-            onClick={handleContainerClick}
             className={`relative w-full overflow-hidden group select-none touch-none outline-none ring-0 focus:outline-none [-webkit-tap-highlight-color:transparent] transition-all duration-300 ${
               isFullscreen
                 ? 'fixed inset-0 z-[100] w-screen h-screen bg-black flex items-center justify-center'
@@ -915,9 +942,33 @@ export const SeriesDetail: React.FC = () => {
                   ? 'object-cover'
                   : 'object-contain'
               }`}
-            >
-              <source src={activeVideoUrl || currentPlayingEpisode.videoUrl} type="video/mp4" />
-            </video>
+            />
+
+            {/* Split Screen Left & Right Interactive Hitbox Zones for Single/Double Tap */}
+            <div
+              className="absolute inset-y-0 left-0 w-1/2 z-20 cursor-pointer select-none [-webkit-tap-highlight-color:transparent]"
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePointerZoneClick('left', e.clientX, e.clientY);
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                performDoubleTapSeek('left');
+              }}
+              aria-label="Rewind 10 seconds double tap"
+            />
+            <div
+              className="absolute inset-y-0 right-0 w-1/2 z-20 cursor-pointer select-none [-webkit-tap-highlight-color:transparent]"
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePointerZoneClick('right', e.clientX, e.clientY);
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                performDoubleTapSeek('right');
+              }}
+              aria-label="Forward 10 seconds double tap"
+            />
 
             {/* Network Buffering / Loading Spinning Circle */}
             {isBuffering && !videoError && (
@@ -934,39 +985,71 @@ export const SeriesDetail: React.FC = () => {
 
             {/* Video Error Recovery Overlay */}
             {videoError && (
-              <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-4 text-center z-30">
-                <p className="text-white font-bold text-sm mb-1">Playback interrupted</p>
-                <p className="text-slate-400 text-xs mb-3">Reconnecting to alternate fast streaming server</p>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setVideoError(false);
-                    setActiveVideoUrl('https://media.w3.org/2010/05/sintel/trailer.mp4');
-                  }}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg transition"
-                >
-                  Reload Stream
-                </button>
-              </div>
-            )}
-
-            {/* Double Tap Left Side Feedback (-10s) */}
-            {ripple?.side === 'left' && (
-              <div className="absolute inset-y-0 left-0 w-1/3 flex items-center justify-center pointer-events-none z-30 transition-all">
-                <div className="flex flex-col items-center justify-center text-white p-3.5 rounded-full bg-black/50 backdrop-blur-sm animate-pulse shadow-lg">
-                  <RotateCcw className="w-7 h-7 text-rose-400 animate-spin" />
-                  <span className="font-black text-xs tracking-wider mt-0.5 font-mono text-rose-300">-10s</span>
+              <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 text-center z-40 animate-in fade-in duration-150">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mb-3 border border-rose-500/30">
+                  <Film className="w-6 h-6" />
+                </div>
+                <p className="text-white font-bold text-sm mb-1">Video Stream Notice</p>
+                <p className="text-slate-300 text-xs mb-1 max-w-md line-clamp-2">
+                  {currentPlayingEpisode.title}
+                </p>
+                <p className="text-slate-400 text-[11px] mb-4 max-w-sm">
+                  Video stream link could not be loaded directly. Tap below to reload.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleReloadVideo();
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg transition active:scale-95 flex items-center gap-1.5"
+                  >
+                    <RotateCw className="w-4 h-4" />
+                    <span>Retry Video</span>
+                  </button>
+                  {activeVideoUrl && (
+                    <a
+                      href={activeVideoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition"
+                    >
+                      Open Link
+                    </a>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Double Tap Right Side Feedback (+10s) */}
+            {/* Double Tap Left Side Feedback (-10s) - YouTube-style semi-circular ripple */}
+            {ripple?.side === 'left' && (
+              <div className="absolute inset-y-0 left-0 w-1/2 flex items-center justify-center pointer-events-none z-30 overflow-hidden">
+                <div className="absolute -left-1/4 w-[120%] h-[120%] rounded-r-full bg-white/10 backdrop-blur-[1px] animate-in fade-in zoom-in-75 duration-200" />
+                <div className="relative flex flex-col items-center justify-center text-white px-5 py-3 rounded-full bg-black/60 backdrop-blur-md shadow-2xl border border-white/15 animate-bounce">
+                  <div className="flex items-center gap-1.5">
+                    <Rewind className="w-5 h-5 text-rose-400 fill-rose-400 animate-pulse" />
+                    <RotateCcw className="w-6 h-6 text-rose-400" />
+                  </div>
+                  <span className="font-black text-sm tracking-wider mt-1 font-mono text-white drop-shadow-md">
+                    -10 SECONDS
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Double Tap Right Side Feedback (+10s) - YouTube-style semi-circular ripple */}
             {ripple?.side === 'right' && (
-              <div className="absolute inset-y-0 right-0 w-1/3 flex items-center justify-center pointer-events-none z-30 transition-all">
-                <div className="flex flex-col items-center justify-center text-white p-3.5 rounded-full bg-black/50 backdrop-blur-sm animate-pulse shadow-lg">
-                  <RotateCw className="w-7 h-7 text-rose-400 animate-spin" />
-                  <span className="font-black text-xs tracking-wider mt-0.5 font-mono text-rose-300">+10s</span>
+              <div className="absolute inset-y-0 right-0 w-1/2 flex items-center justify-center pointer-events-none z-30 overflow-hidden">
+                <div className="absolute -right-1/4 w-[120%] h-[120%] rounded-l-full bg-white/10 backdrop-blur-[1px] animate-in fade-in zoom-in-75 duration-200" />
+                <div className="relative flex flex-col items-center justify-center text-white px-5 py-3 rounded-full bg-black/60 backdrop-blur-md shadow-2xl border border-white/15 animate-bounce">
+                  <div className="flex items-center gap-1.5">
+                    <RotateCw className="w-6 h-6 text-rose-400" />
+                    <FastForward className="w-5 h-5 text-rose-400 fill-rose-400 animate-pulse" />
+                  </div>
+                  <span className="font-black text-sm tracking-wider mt-1 font-mono text-white drop-shadow-md">
+                    +10 SECONDS
+                  </span>
                 </div>
               </div>
             )}
@@ -1037,21 +1120,12 @@ export const SeriesDetail: React.FC = () => {
 
             {/* Video Controls Overlay - Auto-hides during playback, stays visible when paused */}
             <div
-              onClick={(e) => {
-                if (e.target === e.currentTarget) {
-                  e.stopPropagation();
-                  setShowControls((prev) => !prev);
-                  startControlsHideTimer();
-                } else {
-                  startControlsHideTimer();
-                }
-              }}
-              className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/70 flex flex-col justify-between p-3 sm:p-4 transition-opacity duration-300 ${
-                showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+              className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/70 flex flex-col justify-between p-3 sm:p-4 transition-opacity duration-300 pointer-events-none z-25 ${
+                showControls ? 'opacity-100' : 'opacity-0'
               }`}
             >
               {/* Top Controls Bar */}
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 pointer-events-auto">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <button
                     type="button"
@@ -1124,14 +1198,14 @@ export const SeriesDetail: React.FC = () => {
               </div>
 
               {/* Center Play/Pause, Rewind, Forward, & Next Episode Buttons */}
-              <div className="flex items-center justify-center gap-6 sm:gap-8 my-auto">
+              <div className="flex items-center justify-center gap-6 sm:gap-8 my-auto pointer-events-none">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleSeek(-10);
                   }}
-                  className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10"
+                  className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10 pointer-events-auto"
                   title="Rewind 10s"
                 >
                   <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -1141,7 +1215,7 @@ export const SeriesDetail: React.FC = () => {
                 <button
                   type="button"
                   onClick={handlePlayPause}
-                  className="p-4 sm:p-5 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-2xl shadow-rose-600/60 active:scale-90 transition-all border border-rose-400/30"
+                  className="p-4 sm:p-5 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-2xl shadow-rose-600/60 active:scale-90 transition-all border border-rose-400/30 pointer-events-auto"
                   title={isVideoPaused ? 'Play' : 'Pause'}
                 >
                   {isVideoPaused ? (
@@ -1157,7 +1231,7 @@ export const SeriesDetail: React.FC = () => {
                     e.stopPropagation();
                     handleSeek(10);
                   }}
-                  className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10"
+                  className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10 pointer-events-auto"
                   title="Forward 10s"
                 >
                   <RotateCw className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -1168,7 +1242,7 @@ export const SeriesDetail: React.FC = () => {
                   <button
                     type="button"
                     onClick={playNextEpisode}
-                    className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10"
+                    className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10 pointer-events-auto"
                     title="Next Episode"
                   >
                     <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 text-rose-400" />
@@ -1178,7 +1252,7 @@ export const SeriesDetail: React.FC = () => {
               </div>
 
               {/* Bottom Progress Bar, Times, and Fullscreen */}
-              <div className="space-y-2">
+              <div className="space-y-2 pointer-events-auto">
                 <div
                   onClick={(e) => {
                     e.stopPropagation();

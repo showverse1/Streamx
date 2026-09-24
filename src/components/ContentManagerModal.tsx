@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Series, Season, Episode } from '../types';
+import { sanitizeVideoUrl } from '../services/videoUtils';
 
 const SAMPLE_BULK_JSON: Series[] = [
   {
@@ -192,6 +193,7 @@ export const ContentManagerModal: React.FC = () => {
             if (!ep.videoUrl) {
               throw new Error(`Episode "${ep.title || ep.episodeNumber}" in "${item.title}" is missing videoUrl.`);
             }
+            ep.videoUrl = sanitizeVideoUrl(ep.videoUrl);
           }
         }
       }
@@ -316,6 +318,7 @@ export const ContentManagerModal: React.FC = () => {
         ...s,
         episodes: s.episodes.map((ep) => ({
           ...ep,
+          videoUrl: sanitizeVideoUrl(ep.videoUrl),
           thumbnailUrl: posterUrl.trim()
         }))
       }))

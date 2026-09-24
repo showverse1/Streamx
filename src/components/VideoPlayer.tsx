@@ -15,6 +15,7 @@ import {
   Scaling
 } from 'lucide-react';
 import { useAppStore } from '../store';
+import { sanitizeVideoUrl } from '../services/videoUtils';
 
 export const VideoPlayer: React.FC = () => {
   const { activePlayback, stopPlayback, startPlayback, recordEpisodeWatch, haptic } = useAppStore();
@@ -33,7 +34,7 @@ export const VideoPlayer: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPiPActive, setIsPiPActive] = useState(false);
   const [videoError, setVideoError] = useState(false);
-  const [activeVideoUrl, setActiveVideoUrl] = useState(activePlayback?.episode.videoUrl || 'https://media.w3.org/2010/05/sintel/trailer.mp4');
+  const [activeVideoUrl, setActiveVideoUrl] = useState(sanitizeVideoUrl(activePlayback?.episode.videoUrl) || '');
 
   // Aspect Ratio Mode: 'fit' (16:9 contain), 'stretch' (fill container), 'crop' (cover/zoom)
   const [aspectRatioMode, setAspectRatioMode] = useState<'fit' | 'stretch' | 'crop'>('fit');
@@ -44,24 +45,28 @@ export const VideoPlayer: React.FC = () => {
 
   useEffect(() => {
     if (activePlayback?.episode.videoUrl) {
-      setActiveVideoUrl(activePlayback.episode.videoUrl);
+      setActiveVideoUrl(sanitizeVideoUrl(activePlayback.episode.videoUrl));
       setVideoError(false);
     }
   }, [activePlayback?.episode.id, activePlayback?.episode.videoUrl]);
 
   const handleVideoError = () => {
-    console.warn('Video source error, attempting backup mirror CDN...');
-    const fallbacks = [
-      'https://media.w3.org/2010/05/sintel/trailer.mp4',
-      'https://vjs.zencdn.net/v/oceans.mp4',
-      'https://media.w3.org/2010/05/bunny/trailer.mp4'
-    ];
-    const nextFallback = fallbacks.find((url) => url !== activeVideoUrl);
-    if (nextFallback) {
-      setActiveVideoUrl(nextFallback);
-    } else {
-      setVideoError(true);
-    }
+    console.warn('Video source playback error for:', activeVideoUrl);
+    setVideoError(true);
+  };
+
+  const handleReloadVideo = () => {
+    if (!activePlayback?.episode) return;
+    setVideoError(false);
+    const cleaned = sanitizeVideoUrl(activePlayback.episode.videoUrl);
+    setActiveVideoUrl('');
+    setTimeout(() => {
+      setActiveVideoUrl(cleaned);
+      if (videoRef.current) {
+        videoRef.current.load();
+        videoRef.current.play().catch(() => {});
+      }
+    }, 50);
   };
 
   // Gesture indicators
@@ -267,7 +272,12 @@ export const VideoPlayer: React.FC = () => {
     haptic(45);
     const video = videoRef.current;
     if (!video) return;
-    const target = Math.max(0, Math.min(video.duration || 0, video.currentTime + seconds));
+    const dur = video.duration && !isNaN(video.duration) && isFinite(video.duration) && video.duration > 0
+      ? video.duration
+      : (duration > 0 ? duration : 0);
+    const target = dur > 0
+      ? Math.max(0, Math.min(dur, video.currentTime + seconds))
+      : Math.max(0, video.currentTime + seconds);
     video.currentTime = target;
     setCurrentTime(target);
     triggerHUD(seconds > 0 ? 'seek-forward' : 'seek-backward', `${Math.abs(seconds)}s`);
@@ -441,25 +451,48 @@ export const VideoPlayer: React.FC = () => {
         playsInline
         controls={false}
         onError={handleVideoError}
-      >
-        <source src={activeVideoUrl} type="video/mp4" />
-      </video>
+      />
+
+      {/* Split Screen Left & Right Interactive Hitbox Zones for Instant Double Tap / Seek */}
+      <div
+        className="absolute inset-y-0 left-0 w-1/2 z-25 cursor-pointer select-none [-webkit-tap-highlight-color:transparent]"
+        onClick={(e) => {
+          e.stopPropagation();
+          resetControlsTimeout();
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          seekRelative(-10);
+        }}
+        aria-label="Rewind 10s"
+      />
+      <div
+        className="absolute inset-y-0 right-0 w-1/2 z-25 cursor-pointer select-none [-webkit-tap-highlight-color:transparent]"
+        onClick={(e) => {
+          e.stopPropagation();
+          resetControlsTimeout();
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          seekRelative(10);
+        }}
+        aria-label="Forward 10s"
+      />
 
       {/* Video Source Error Recovery Banner */}
       {videoError && (
-        <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 text-center z-40">
+        <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 text-center z-40">
           <p className="text-white font-bold text-sm mb-1">Stream source unavailable</p>
-          <p className="text-slate-400 text-xs mb-4">Click below to reconnect with backup high-speed mirror</p>
+          <p className="text-slate-400 text-xs mb-4">Video link could not be streamed directly</p>
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setVideoError(false);
-              setActiveVideoUrl('https://media.w3.org/2010/05/sintel/trailer.mp4');
+              handleReloadVideo();
             }}
-            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg transition"
+            className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg transition"
           >
-            Connect to Backup Mirror
+            Retry Video
           </button>
         </div>
       )}
