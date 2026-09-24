@@ -29,11 +29,11 @@ const SAMPLE_BULK_JSON: Series[] = [
     title: 'Interstellar Odyssey',
     thumbnailUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&auto=format&fit=crop&q=80',
     bannerUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&auto=format&fit=crop&q=80',
-    category: 'Sci-Fi',
+    category: 'Movie',
     rating: '9.4',
     year: 2026,
     description: 'An expedition through a newly formed wormhole beyond Saturn to locate a habitable haven.',
-    tags: ['Sci-Fi', 'Space', 'Adventure', 'Movie'],
+    tags: ['Movie', 'Space', 'Adventure', 'Cinema'],
     uploadTimestamp: Date.now(),
     seasons: [
       {
@@ -56,14 +56,14 @@ const SAMPLE_BULK_JSON: Series[] = [
   },
   {
     id: 'sample-series-1',
-    title: 'Shadows of the City',
+    title: 'Mumbai Shadows: Underworld',
     thumbnailUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=800&auto=format&fit=crop&q=80',
     bannerUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200&auto=format&fit=crop&q=80',
-    category: 'Action',
-    rating: '9.1',
+    category: 'Indian',
+    rating: '9.2',
     year: 2026,
-    description: 'A vigilant detective unravels a high-stakes conspiracy in the heart of the metropolis.',
-    tags: ['Action', 'Thriller', 'Crime', 'Web Series'],
+    description: 'A vigilant Indian detective unravels a high-stakes conspiracy in the heart of Mumbai.',
+    tags: ['Indian', 'Thriller', 'Crime', 'Web Series'],
     uploadTimestamp: Date.now() - 3600000,
     seasons: [
       {
@@ -120,11 +120,11 @@ export const ContentManagerModal: React.FC = () => {
   const [editingSeriesId, setEditingSeriesId] = useState<string | null>(null);
   const [formType, setFormType] = useState<'movie' | 'series'>('series');
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Action');
+  const [category, setCategory] = useState('Movie');
   const [rating, setRating] = useState('9.0');
   const [year, setYear] = useState(new Date().getFullYear());
   const [description, setDescription] = useState('');
-  const [tagsInput, setTagsInput] = useState('Action, HD');
+  const [tagsInput, setTagsInput] = useState('Movie, HD');
   const [posterUrl, setPosterUrl] = useState('');
 
   // Seasons & Episodes Builder
@@ -631,12 +631,14 @@ export const ContentManagerModal: React.FC = () => {
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:outline-none focus:border-rose-500"
                   >
-                    <option value="Action">Action</option>
+                    <option value="Movie">Movie</option>
+                    <option value="Indian">Indian</option>
                     <option value="Anime">Anime</option>
-                    <option value="Sci-Fi">Sci-Fi</option>
+                    <option value="K-Drama">K-Drama</option>
                     <option value="Thriller">Thriller</option>
                     <option value="Romance">Romance</option>
-                    <option value="K-Drama">K-Drama</option>
+                    <option value="Action">Action</option>
+                    <option value="Sci-Fi">Sci-Fi</option>
                     <option value="Comedy">Comedy</option>
                     <option value="Drama">Drama</option>
                     <option value="Horror">Horror</option>

@@ -589,19 +589,15 @@ export const VideoPlayer: React.FC = () => {
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="truncate">
-              <h2 className="text-white font-bold text-sm tracking-tight truncate drop-shadow">
-                {series.title}
+              <h2 className="text-white font-extrabold text-sm tracking-tight truncate drop-shadow flex items-center gap-2">
+                <span>{series.title}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono border border-cyan-400/30">
+                  HD
+                </span>
               </h2>
-              <div className="flex items-center gap-2">
-                <p className="text-slate-300 text-xs truncate">
-                  S{seasonNum} : E{episode.episodeNumber} - {episode.title}
-                </p>
-                {isOfflinePlaying && (
-                  <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[10px] font-bold shrink-0 flex items-center gap-1">
-                    <HardDrive className="w-2.5 h-2.5" /> Offline File
-                  </span>
-                )}
-              </div>
+              <p className="text-slate-300 text-xs truncate">
+                S{seasonNum} : E{episode.episodeNumber} - {episode.title}
+              </p>
             </div>
           </div>
 
@@ -649,42 +645,22 @@ export const VideoPlayer: React.FC = () => {
           </div>
         </div>
 
-        {/* CENTER PLAY/PAUSE BIG BUTTON */}
-        <div className="flex items-center justify-center gap-8 pointer-events-auto">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              seekRelative(-10);
-            }}
-            className="p-3 rounded-full bg-black/40 text-white/90 active:bg-white/20 backdrop-blur-sm transition-all active:scale-90"
-            title="Rewind 10s"
-          >
-            <RotateCcw className="w-6 h-6" />
-          </button>
-
+        {/* CENTER PLAY/PAUSE BIG BUTTON (Clean, without unwanted next button) */}
+        <div className="flex items-center justify-center pointer-events-auto">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               togglePlayPause();
             }}
-            className="p-5 rounded-full bg-rose-600/90 text-white shadow-xl shadow-rose-600/40 active:scale-90 transition-all hover:bg-rose-500 backdrop-blur-md"
+            className="p-5 rounded-full bg-gradient-to-tr from-cyan-500 via-sky-500 to-fuchsia-500 text-white shadow-[0_0_25px_rgba(0,243,255,0.7)] border-2 border-cyan-300 active:scale-90 transition-all hover:scale-105 backdrop-blur-md"
             title={isPlaying ? 'Pause' : 'Play'}
           >
-            {isPlaying ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current ml-1" />}
-          </button>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              seekRelative(10);
-            }}
-            className="p-3 rounded-full bg-black/40 text-white/90 active:bg-white/20 backdrop-blur-sm transition-all active:scale-90"
-            title="Forward 10s"
-          >
-            <RotateCw className="w-6 h-6" />
+            {isPlaying ? (
+              <Pause className="w-9 h-9 fill-current drop-shadow-[0_0_8px_rgba(0,243,255,0.9)]" />
+            ) : (
+              <Play className="w-9 h-9 fill-current ml-1 drop-shadow-[0_0_8px_rgba(0,243,255,0.9)]" />
+            )}
           </button>
         </div>
 
@@ -715,14 +691,14 @@ export const VideoPlayer: React.FC = () => {
                 onChange={handleSeek}
                 className="w-full relative z-10"
                 style={{
-                  background: `linear-gradient(to right, #f43f5e 0%, #f43f5e ${
+                  background: `linear-gradient(to right, #00f3ff 0%, #d946ef ${
                     duration ? (currentTime / duration) * 100 : 0
-                  }%, transparent ${duration ? (currentTime / duration) * 100 : 0}%, transparent 100%)`
+                  }%, rgba(255,255,255,0.2) ${duration ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) 100%)`
                 }}
               />
             </div>
 
-            <span className="text-xs font-mono text-slate-400 w-12">
+            <span className="text-xs font-mono text-cyan-300 w-12 font-semibold">
               {formatTime(duration)}
             </span>
           </div>
@@ -736,9 +712,9 @@ export const VideoPlayer: React.FC = () => {
                   e.stopPropagation();
                   togglePlayPause();
                 }}
-                className="text-white hover:text-rose-400 active:scale-95 transition-all"
+                className="text-white hover:text-cyan-400 active:scale-95 transition-all p-1"
               >
-                {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
+                {isPlaying ? <Pause className="w-5 h-5 fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]" /> : <Play className="w-5 h-5 fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]" />}
               </button>
 
               <button
@@ -752,24 +728,24 @@ export const VideoPlayer: React.FC = () => {
                     setIsMuted(video.muted);
                   }
                 }}
-                className="text-white hover:text-rose-400 active:scale-95 transition-all"
+                className="text-white hover:text-cyan-400 active:scale-95 transition-all p-1"
               >
-                {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-rose-500" /> : <Volume2 className="w-5 h-5" />}
+                {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-rose-500" /> : <Volume2 className="w-5 h-5 text-slate-200" />}
               </button>
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Next Episode Button if available */}
+              {/* Next Episode Button at bottom ('niche whi rahn do') */}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleNextEpisode();
                 }}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-semibold text-white backdrop-blur-sm transition-all"
+                className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/80 hover:bg-cyan-900/90 active:scale-95 text-xs font-extrabold text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(0,243,255,0.3)] backdrop-blur-md transition-all"
               >
-                <span>Next</span>
-                <SkipForward className="w-3.5 h-3.5" />
+                <span>Next Episode</span>
+                <SkipForward className="w-3.5 h-3.5 stroke-[2.5]" />
               </button>
             </div>
           </div>

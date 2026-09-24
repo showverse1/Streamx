@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Home, Search, Download, User, AlertCircle, WifiOff, ChevronLeft } from 'lucide-react';
+import { Home, Search, Film, User, AlertCircle, WifiOff, ChevronLeft, Sparkles, Zap } from 'lucide-react';
 import { App as CapApp } from '@capacitor/app';
 import { useAppStore } from '../store';
 import { TabType } from '../types';
@@ -222,13 +222,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navItems: { tab: TabType; label: string; icon: typeof Home }[] = [
     { tab: 'home', label: 'Home', icon: Home },
+    { tab: 'movies', label: 'Cinema', icon: Film },
     { tab: 'search', label: 'Search', icon: Search },
-    { tab: 'downloads', label: 'Downloads', icon: Download },
-    { tab: 'me', label: 'Me', icon: User },
+    { tab: 'me', label: 'Profile', icon: User },
   ];
 
   return (
-    <div className="relative min-h-[100dvh] bg-[#090a0f] text-slate-100 flex flex-col font-sans selection:bg-rose-500 selection:text-white">
+    <div className="relative min-h-[100dvh] bg-black text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
       {/* Native Edge Swipe Back Visual Indicator */}
       {edgeSwipeProgress > 0 && (
         <div
@@ -238,15 +238,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             opacity: Math.min(1, edgeSwipeProgress * 1.5)
           }}
         >
-          <div className="w-10 h-10 rounded-full bg-rose-600/90 backdrop-blur-md shadow-lg shadow-rose-600/40 flex items-center justify-center text-white border border-rose-400/50">
-            <ChevronLeft className="w-6 h-6 animate-pulse" />
+          <div className="w-10 h-10 rounded-full bg-cyan-500/90 backdrop-blur-md shadow-[0_0_15px_rgba(0,243,255,0.6)] flex items-center justify-center text-black font-bold border border-cyan-300">
+            <ChevronLeft className="w-6 h-6 stroke-[3]" />
           </div>
         </div>
       )}
 
       {/* Top Mobile Status Header - ONLY on Home screen */}
       {currentTab === 'home' && !selectedSeriesId && (
-        <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-[#07090e]/95 backdrop-blur-xl border-b border-rose-500/20 safe-pt shadow-lg shadow-black/60 gpu-smooth">
+        <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 bg-black/90 backdrop-blur-2xl border-b border-cyan-500/25 safe-pt shadow-[0_4px_25px_rgba(0,0,0,0.9)] gpu-smooth">
+          {/* Futuristic Neon Logo & Badge */}
           <div 
             onClick={() => {
               haptic(40);
@@ -254,22 +255,52 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             }}
             className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition-transform"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500 via-rose-600 to-amber-500 flex items-center justify-center font-black text-white text-base shadow-[0_0_15px_rgba(244,63,94,0.6)] border border-rose-400/40">
-              X
-            </div>
-            <div>
-              <span className="font-black text-lg tracking-tight bg-gradient-to-r from-white via-rose-100 to-rose-400 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(244,63,94,0.4)]">
-                StreamX
+            {/* Cyber Neon X Badge */}
+            <div className="relative w-8 h-8 rounded-xl bg-black flex items-center justify-center font-black text-white text-base shadow-[0_0_16px_rgba(0,243,255,0.7)] border border-cyan-400/60 overflow-hidden">
+              <span className="bg-gradient-to-br from-cyan-400 via-sky-300 to-fuchsia-500 bg-clip-text text-transparent font-black text-base drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]">
+                X
               </span>
+              <span className="absolute inset-0 bg-gradient-to-tr from-cyan-500/20 to-transparent pointer-events-none" />
+            </div>
+
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-lg tracking-tight bg-gradient-to-r from-white via-cyan-100 to-cyan-400 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(0,243,255,0.5)]">
+                  StreamX
+                </span>
+                <span className="px-1.5 py-0.2 rounded bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white font-mono text-[9px] font-black tracking-widest uppercase shadow-[0_0_8px_rgba(0,243,255,0.6)]">
+                  ULTRA
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f3ff] animate-ping" />
+                <span className="text-[10px] text-cyan-300 font-mono tracking-wider font-semibold">
+                  NEON CINEMA • 4K
+                </span>
+              </div>
             </div>
           </div>
 
+          {/* Quick Header Actions */}
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                haptic(35);
+                setCurrentTab('search');
+              }}
+              className="p-2 rounded-xl bg-black border border-cyan-500/30 text-cyan-300 hover:text-white hover:border-cyan-400 active:scale-95 transition-all shadow-[0_0_10px_rgba(0,243,255,0.2)]"
+              title="Search"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+
             <PWAInstallButton />
+
             {!isOnline && (
-              <div className="flex items-center gap-1.5 bg-amber-950/80 border border-amber-500/50 rounded-full px-2.5 py-1 text-xs text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.4)] animate-pulse">
+              <div className="flex items-center gap-1 bg-amber-950/80 border border-amber-500/50 rounded-full px-2 py-0.5 text-[10px] text-amber-300 font-bold shadow-[0_0_10px_rgba(245,158,11,0.4)] animate-pulse">
                 <WifiOff className="w-3 h-3 text-amber-400" />
-                <span className="font-semibold text-[10px] tracking-wide">OFFLINE</span>
+                <span>OFFLINE</span>
               </div>
             )}
           </div>
@@ -280,7 +311,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <OfflineToast />
 
       {/* Main Page Content with 120Hz smooth acceleration */}
-      <main className="flex-1 pb-24 gpu-smooth">
+      <main className="flex-1 pb-24 gpu-smooth bg-black">
         {children}
       </main>
 
@@ -290,15 +321,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* "Press back again to exit" Floating Alert */}
       {backExitWarning && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 animate-bounce">
-          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-slate-900/95 border border-rose-500/60 text-slate-100 text-xs font-semibold shadow-[0_0_20px_rgba(244,63,94,0.4)] backdrop-blur-lg">
-            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-black/95 border border-cyan-400/60 text-slate-100 text-xs font-semibold shadow-[0_0_20px_rgba(0,243,255,0.4)] backdrop-blur-lg">
+            <AlertCircle className="w-4 h-4 text-cyan-400 shrink-0" />
             <span>Press back again to exit</span>
           </div>
         </div>
       )}
 
-      {/* Fixed Bottom Navigation Bar - Electric Neon Aesthetic */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#07090e]/95 backdrop-blur-2xl border-t border-rose-500/20 safe-pb shadow-[0_-5px_25px_rgba(0,0,0,0.8)] gpu-smooth">
+      {/* Fixed Bottom Navigation Bar - Electric Neon Cyber Aesthetic */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-2xl border-t border-cyan-500/25 safe-pb shadow-[0_-5px_25px_rgba(0,0,0,0.95)] gpu-smooth">
         <div className="max-w-md mx-auto grid grid-cols-4 px-2 py-1.5">
           {navItems.map(({ tab, label, icon: Icon }) => {
             const isActive = currentTab === tab && !selectedSeriesId;
@@ -306,31 +337,34 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               <button
                 key={tab}
                 type="button"
-                onClick={() => setCurrentTab(tab)}
-                className={`relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all duration-200 active:scale-90 ${
-                  isActive ? 'text-rose-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+                onClick={() => {
+                  haptic(35);
+                  setCurrentTab(tab);
+                }}
+                className={`relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all duration-200 active:scale-90 cursor-pointer ${
+                  isActive ? 'text-cyan-300 font-black' : 'text-slate-500 hover:text-slate-300'
                 }`}
               >
                 {isActive && (
-                  <span className="absolute inset-0 rounded-xl bg-gradient-to-t from-rose-500/15 to-transparent pointer-events-none" />
+                  <span className="absolute inset-0 rounded-xl bg-gradient-to-t from-cyan-500/15 via-cyan-500/5 to-transparent pointer-events-none" />
                 )}
                 <div className="relative">
                   <Icon
                     className={`w-5 h-5 transition-all duration-200 ${
                       isActive
-                        ? 'scale-110 stroke-[2.5] text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]'
+                        ? 'scale-110 stroke-[2.5] text-cyan-300 drop-shadow-[0_0_10px_rgba(0,243,255,0.9)]'
                         : 'stroke-[1.8]'
                     }`}
                   />
                   {isActive && (
-                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,1)]" />
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_#00f3ff]" />
                   )}
                 </div>
                 <span
                   className={`text-[11px] mt-1 tracking-tight ${
                     isActive
-                      ? 'text-rose-400 font-extrabold drop-shadow-[0_0_6px_rgba(244,63,94,0.6)]'
-                      : 'text-slate-400'
+                      ? 'text-cyan-300 font-black drop-shadow-[0_0_8px_rgba(0,243,255,0.7)]'
+                      : 'text-slate-500 font-medium'
                   }`}
                 >
                   {label}

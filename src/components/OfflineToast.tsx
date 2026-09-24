@@ -68,20 +68,12 @@ export const OfflineToast: React.FC = () => {
             </button>
           </div>
 
-          <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-            <button
-              type="button"
-              onClick={() => {
-                haptic(40);
-                setCurrentTab('downloads');
-                setDismissed(true);
-              }}
-              className="flex items-center gap-1.5 font-semibold text-rose-400 hover:text-rose-300"
-            >
-              <HardDriveDownload className="w-3.5 h-3.5" />
-              <span>Go to Downloads</span>
-            </button>
-            <span className="text-[10px] text-slate-400">PWA Offline Cache Active</span>
+          <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1.5 font-bold text-cyan-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+              <span>PWA Offline Cache Active</span>
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">StreamX Engine</span>
           </div>
         </div>
       ) : (

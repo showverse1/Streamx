@@ -70,7 +70,7 @@ export const Profile: React.FC = () => {
   };
 
   return (
-    <div className="p-4 space-y-6 max-w-md mx-auto relative">
+    <div className="p-4 space-y-6 max-w-md mx-auto relative bg-black min-h-screen text-slate-100">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-sm transition-all duration-300 animate-in fade-in slide-in-from-top-4 pointer-events-none">
@@ -174,17 +174,17 @@ export const Profile: React.FC = () => {
       )}
 
       {/* Profile Card Header with Email & Password Login */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-rose-950/40 p-5 border border-slate-800 shadow-xl">
+      <div className="relative overflow-hidden rounded-2xl bg-black p-5 border border-cyan-500/30 shadow-[0_0_25px_rgba(0,243,255,0.15)]">
         {user ? (
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3.5 min-w-0">
               <div className="relative shrink-0">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-rose-600 via-red-500 to-amber-500 p-0.5 shadow-lg shadow-rose-600/30">
-                  <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center font-black text-rose-500 text-lg">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-cyan-500 via-sky-500 to-fuchsia-600 p-0.5 shadow-[0_0_15px_rgba(0,243,255,0.5)]">
+                  <div className="w-full h-full rounded-full bg-black flex items-center justify-center font-black text-cyan-300 text-lg">
                     {user.name ? user.name.slice(0, 2).toUpperCase() : 'SX'}
                   </div>
                 </div>
-                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-900" />
+                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-cyan-400 border-2 border-black shadow-[0_0_8px_#00f3ff]" />
               </div>
 
               <div className="min-w-0">
@@ -192,15 +192,15 @@ export const Profile: React.FC = () => {
                   <h2 className="font-extrabold text-white text-sm truncate">
                     {user.name}
                   </h2>
-                  <ShieldCheck className="w-4 h-4 text-rose-500 shrink-0" />
+                  <ShieldCheck className="w-4 h-4 text-cyan-400 shrink-0" />
                 </div>
                 <p className="text-xs text-slate-300 font-mono truncate flex items-center gap-1 mt-0.5">
-                  <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                  <Mail className="w-3 h-3 text-cyan-400 shrink-0" />
                   <span className="truncate">{user.email}</span>
                 </p>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <span className="text-[11px] text-slate-400">
-                    {watchHistory.length} watched
+                  <span className="text-[11px] text-cyan-400 font-mono font-semibold">
+                    {watchHistory.length} watched titles
                   </span>
                 </div>
               </div>
@@ -212,7 +212,7 @@ export const Profile: React.FC = () => {
                 haptic(40);
                 logout();
               }}
-              className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-slate-700/60 transition-all shrink-0 active:scale-95"
+              className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 text-slate-400 hover:text-cyan-300 border border-slate-800 hover:border-cyan-500/40 transition-all shrink-0 active:scale-95 cursor-pointer"
               title="Sign Out"
             >
               <LogOut className="w-4 h-4" />
@@ -222,7 +222,7 @@ export const Profile: React.FC = () => {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+                <div className="w-12 h-12 rounded-full bg-slate-950 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(0,243,255,0.25)]">
                   <UserIcon className="w-6 h-6" />
                 </div>
                 <div>
@@ -242,7 +242,7 @@ export const Profile: React.FC = () => {
                 haptic(40);
                 setIsAuthModalOpen(true);
               }}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition-all active:scale-98 flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-fuchsia-600 hover:from-cyan-400 hover:to-fuchsia-500 text-white font-extrabold text-xs shadow-[0_0_18px_rgba(0,243,255,0.4)] transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
             >
               <LogIn className="w-4 h-4" />
               <span>Login with Email & Password</span>

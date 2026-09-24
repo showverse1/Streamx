@@ -20,7 +20,7 @@ export interface Series {
   title: string;
   thumbnailUrl: string;
   bannerUrl?: string;
-  category: 'Anime' | 'K-Drama' | 'Action' | 'Sci-Fi' | 'Thriller' | 'Romance' | string;
+  category: 'Movie' | 'Indian' | 'Anime' | 'K-Drama' | 'Thriller' | 'Romance' | string;
   rating?: string;
   year?: number;
   description?: string;
@@ -70,4 +70,4 @@ export interface UserProfile {
   role?: string;
 }
 
-export type TabType = 'home' | 'search' | 'downloads' | 'me';
+export type TabType = 'home' | 'movies' | 'search' | 'downloads' | 'me';

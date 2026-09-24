@@ -17,17 +17,28 @@ export const Search: React.FC = () => {
   const [query, setQuery] = useState('');
   const [activeQuickFilter, setActiveQuickFilter] = useState<string>('All');
 
-  const quickFilters = ['All', 'Anime', 'K-Drama', 'Action', 'Sci-Fi', 'Popular'];
+  const quickFilters = ['All', 'Movie', 'Indian', 'Anime', 'K-Drama', 'Popular'];
 
   const results = useMemo(() => {
     let filtered = series;
 
     if (activeQuickFilter !== 'All') {
-      filtered = filtered.filter(
-        (s) =>
-          s.category.toLowerCase() === activeQuickFilter.toLowerCase() ||
-          s.tags?.some((t) => t.toLowerCase() === activeQuickFilter.toLowerCase())
-      );
+      const target = activeQuickFilter.toLowerCase();
+      filtered = filtered.filter((s) => {
+        const cat = (s.category || '').toLowerCase();
+        const tags = (s.tags || []).map((t) => t.toLowerCase());
+
+        if (target === 'movie') {
+          return cat === 'movie' || cat === 'sci-fi' || tags.includes('movie');
+        }
+        if (target === 'indian') {
+          return cat === 'indian' || cat === 'action' || tags.includes('indian');
+        }
+        if (target === 'popular') {
+          return parseFloat(s.rating || '0') >= 8.5;
+        }
+        return cat === target || tags.includes(target);
+      });
     }
 
     if (query.trim()) {
@@ -95,16 +106,16 @@ export const Search: React.FC = () => {
   };
 
   return (
-    <div className="p-4 space-y-4 max-w-md mx-auto">
+    <div className="p-4 space-y-4 max-w-md mx-auto bg-black min-h-screen">
       {/* Search Input Box */}
       <form onSubmit={handleSubmit} className="relative">
-        <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-400 pointer-events-none" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search anime, K-drama, titles, actors..."
-          className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-20 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition-colors shadow-inner"
+          placeholder="Search movies, Indian series, cinema, actors..."
+          className="w-full bg-slate-950 border border-slate-800 rounded-2xl pl-10 pr-20 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:shadow-[0_0_15px_rgba(0,243,255,0.35)] transition-all shadow-inner"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {query && (
@@ -122,7 +133,7 @@ export const Search: React.FC = () => {
           )}
           <button
             type="submit"
-            className="p-1 px-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow transition active:scale-95"
+            className="p-1.5 px-3 rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-600 hover:from-cyan-400 hover:to-fuchsia-500 text-white text-xs font-bold shadow-[0_0_10px_rgba(0,243,255,0.4)] transition active:scale-95 cursor-pointer"
           >
             Search
           </button>
@@ -141,10 +152,10 @@ export const Search: React.FC = () => {
                 haptic(30);
                 setActiveQuickFilter(tag);
               }}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-150 active:scale-95 ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-150 active:scale-95 cursor-pointer ${
                 isSelected
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
-                  : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                  ? 'bg-gradient-to-r from-cyan-500 via-sky-500 to-fuchsia-600 text-white shadow-[0_0_15px_rgba(0,243,255,0.6)] border border-cyan-300'
+                  : 'bg-black text-slate-400 border border-slate-800 hover:border-cyan-500/40 hover:text-white'
               }`}
             >
               {tag}
@@ -231,55 +242,64 @@ export const Search: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {results.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => handleSelectSeries(item)}
-              className="group bg-slate-900/80 rounded-xl overflow-hidden border border-slate-800 hover:border-slate-700 transition-all cursor-pointer active:scale-95 flex flex-col shadow-md"
-            >
-              <div className="relative aspect-[3/4] bg-slate-950">
-                <img
-                  src={item.thumbnailUrl}
-                  alt={item.title}
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
+          {results.map((item) => {
+            const displayCat =
+              item.category?.toLowerCase() === 'sci-fi'
+                ? 'Movie'
+                : item.category?.toLowerCase() === 'action'
+                ? 'Indian'
+                : item.category;
 
-                <div className="absolute top-2 left-2">
-                  <span className="px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-md text-[9px] font-bold text-rose-400 uppercase border border-rose-500/20">
-                    {item.category}
-                  </span>
-                </div>
+            return (
+              <div
+                key={item.id}
+                onClick={() => handleSelectSeries(item)}
+                className="group bg-black rounded-2xl overflow-hidden border border-cyan-500/25 hover:border-cyan-400/80 hover:shadow-[0_0_20px_rgba(0,243,255,0.3)] transition-all cursor-pointer active:scale-95 flex flex-col shadow-lg shadow-black"
+              >
+                <div className="relative aspect-[3/4] bg-black">
+                  <img
+                    src={item.thumbnailUrl}
+                    alt={item.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-transparent" />
 
-                {item.rating && (
-                  <div className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md text-[9px] font-bold text-amber-300 border border-amber-400/20">
-                    <Star className="w-2 h-2 fill-amber-300" />
-                    {item.rating}
+                  <div className="absolute top-2 left-2">
+                    <span className="px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-md text-[9px] font-black text-cyan-300 uppercase border border-cyan-400/40 shadow-[0_0_8px_rgba(0,243,255,0.4)]">
+                      {displayCat}
+                    </span>
                   </div>
-                )}
 
-                <button
-                  type="button"
-                  onClick={(e) => handleQuickPlay(e, item)}
-                  className="absolute bottom-2 right-2 p-2 rounded-full bg-rose-600 text-white shadow-md active:scale-90"
-                  title="Play"
-                >
-                  <Play className="w-3 h-3 fill-current ml-0.5" />
-                </button>
-              </div>
+                  {item.rating && (
+                    <div className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-md text-[9px] font-bold text-amber-300 border border-amber-400/30">
+                      <Star className="w-2 h-2 fill-amber-300" />
+                      {item.rating}
+                    </div>
+                  )}
 
-              <div className="p-2.5 flex-1 flex flex-col justify-between">
-                <h4 className="font-bold text-xs text-white line-clamp-1 group-hover:text-rose-400">
-                  {item.title}
-                </h4>
-                <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400">
-                  <span>{item.year || 2026}</span>
-                  <span>{item.seasons.length} {item.seasons.length > 1 ? 'Seasons' : 'Season'}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => handleQuickPlay(e, item)}
+                    className="absolute bottom-2 right-2 p-2 rounded-full bg-gradient-to-tr from-cyan-500 via-sky-500 to-fuchsia-600 text-white shadow-[0_0_12px_rgba(0,243,255,0.8)] active:scale-90 transition-transform"
+                    title="Play"
+                  >
+                    <Play className="w-3 h-3 fill-current ml-0.5" />
+                  </button>
+                </div>
+
+                <div className="p-2.5 flex-1 flex flex-col justify-between bg-black">
+                  <h4 className="font-extrabold text-xs text-white line-clamp-1 group-hover:text-cyan-300 transition-colors">
+                    {item.title}
+                  </h4>
+                  <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400 font-mono">
+                    <span>{item.year || 2026}</span>
+                    <span className="text-cyan-400">{item.seasons[0]?.episodes.length || 0} Ep</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

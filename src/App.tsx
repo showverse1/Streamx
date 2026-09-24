@@ -5,8 +5,8 @@ import { AuthModal } from './components/AuthModal';
 import { ContentManagerModal } from './components/ContentManagerModal';
 import { Home } from './pages/Home';
 import { SeriesDetail } from './pages/SeriesDetail';
+import { MoviesPage } from './pages/MoviesPage';
 import { Search } from './pages/Search';
-import { Downloads } from './pages/Downloads';
 import { Profile } from './pages/Profile';
 import { useAppStore } from './store';
 
@@ -37,10 +37,12 @@ export default function App() {
     switch (currentTab) {
       case 'home':
         return <Home />;
+      case 'movies':
+        return <MoviesPage />;
       case 'search':
         return <Search />;
       case 'downloads':
-        return <Downloads />;
+        return <MoviesPage />;
       case 'me':
         return <Profile />;
       default:
