@@ -5,6 +5,7 @@ const DOWNLOADS_KEY = 'streamx_downloads';
 const RECENT_SEARCHES_KEY = 'streamx_recent_searches';
 const USER_KEY = 'streamx_user_profile';
 const SERIES_CACHE_KEY = 'streamx_series_cache';
+const APP_THEME_KEY = 'streamx_app_theme';
 
 export const storage = {
   getCachedSeries(): Series[] {
@@ -195,6 +196,22 @@ export const storage = {
     } catch (e) {
       console.error('Failed to delete download', e);
       return [];
+    }
+  },
+
+  getAppTheme(): string {
+    try {
+      return localStorage.getItem(APP_THEME_KEY) || 'cyber-neon';
+    } catch {
+      return 'cyber-neon';
+    }
+  },
+
+  saveAppTheme(themeId: string): void {
+    try {
+      localStorage.setItem(APP_THEME_KEY, themeId);
+    } catch (e) {
+      console.error('Failed to save app theme', e);
     }
   }
 };

@@ -13,11 +13,14 @@ import {
   saveWatchHistoryToFirestore,
   fetchUserWatchHistoryFromFirestore,
   clearUserWatchHistoryInFirestore,
-  subscribeToAuthState
+  subscribeToAuthState,
+  saveAppThemeToFirestore,
+  fetchAppThemeFromFirestore
 } from './firebase';
 import { storage } from './storage';
 import { downloadEpisodeToAppFolder, deleteOfflineVideo } from './services/offlineStorage';
 import { sanitizeVideoUrl } from './services/videoUtils';
+import { applyThemeToDOM } from './services/themeService';
 
 export interface ActivePlayback {
   series: Series;
@@ -105,6 +108,11 @@ interface AppState {
 
   // Clear all local histories
   clearAllHistory: () => void;
+
+  // Global App Theme
+  currentTheme: string;
+  setAppTheme: (themeId: string) => Promise<void>;
+  initTheme: () => Promise<void>;
 
   // Haptic trigger
   haptic: (duration?: number) => void;
@@ -617,6 +625,37 @@ export const useAppStore = create<AppState>((set, get) => ({
       clearUserWatchHistoryInFirestore(currentUser.uid).catch((err) => {
         console.warn('Firestore clear all history warning:', err);
       });
+    }
+  },
+
+  // Global App Theme Store
+  currentTheme: storage.getAppTheme(),
+  setAppTheme: async (themeId: string) => {
+    get().haptic(45);
+    storage.saveAppTheme(themeId);
+    applyThemeToDOM(themeId);
+    set({ currentTheme: themeId });
+
+    // Sync to Firestore cloud settings for all users / admin persistence
+    await saveAppThemeToFirestore(themeId);
+  },
+
+  initTheme: async () => {
+    // 1. Instant local theme application
+    const localTheme = storage.getAppTheme();
+    applyThemeToDOM(localTheme);
+    set({ currentTheme: localTheme });
+
+    // 2. Fetch latest theme from Firestore if available
+    try {
+      const cloudTheme = await fetchAppThemeFromFirestore();
+      if (cloudTheme && cloudTheme !== localTheme) {
+        storage.saveAppTheme(cloudTheme);
+        applyThemeToDOM(cloudTheme);
+        set({ currentTheme: cloudTheme });
+      }
+    } catch (e) {
+      console.warn('Theme cloud init notice:', e);
     }
   },
 

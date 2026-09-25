@@ -22,11 +22,15 @@ import {
   ChevronDown,
   ChevronUp,
   Save,
-  Flame
+  Flame,
+  Palette,
+  Layers,
+  TrendingUp
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Series, Season, Episode } from '../types';
 import { sanitizeVideoUrl } from '../services/videoUtils';
+import { APP_THEMES } from '../services/themeService';
 
 const SAMPLE_BULK_JSON: Series[] = [
   {
@@ -112,10 +116,12 @@ export const ContentManagerModal: React.FC = () => {
     updateSeries,
     deleteSeries,
     clearAllSeries,
+    currentTheme,
+    setAppTheme,
     haptic
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<'bulk' | 'form' | 'manage' | 'guide'>('bulk');
+  const [activeTab, setActiveTab] = useState<'bulk' | 'form' | 'manage' | 'theme' | 'guide'>('bulk');
   const [jsonText, setJsonText] = useState<string>(JSON.stringify(SAMPLE_BULK_JSON, null, 2));
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -214,6 +220,26 @@ export const ContentManagerModal: React.FC = () => {
     setStatusMsg({ type: 'success', text: `Updated Episode in "${targetSeries.title}"!` });
     setTimeout(() => setStatusMsg(null), 3000);
   };
+
+  const handleToggleTrending = async (target: Series) => {
+    haptic(35);
+    const existingTags = target.tags || [];
+    const isTrending = existingTags.includes('Trending');
+    const newTags = isTrending
+      ? existingTags.filter((t) => t !== 'Trending')
+      : [...existingTags, 'Trending'];
+    const updated: Series = { ...target, tags: newTags };
+    await updateSeries(updated);
+    setStatusMsg({
+      type: 'success',
+      text: isTrending ? `Removed "Trending" from "${target.title}"` : `Marked "${target.title}" as Trending!`
+    });
+    setTimeout(() => setStatusMsg(null), 2500);
+  };
+
+  const totalEpisodesCount = series.reduce((acc, s) => {
+    return acc + s.seasons.reduce((sAcc, sea) => sAcc + sea.episodes.length, 0);
+  }, 0);
 
   const handleCopyTemplate = () => {
     haptic(30);
@@ -499,6 +525,18 @@ export const ContentManagerModal: React.FC = () => {
           >
             <Tv className="w-4 h-4" />
             <span>Manage Catalog ({series.length})</span>
+          </button>
+
+          <button
+            onClick={() => { haptic(25); setActiveTab('theme'); }}
+            className={`pb-3 px-3 text-xs font-bold transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'theme'
+                ? 'border-cyan-400 text-cyan-300 shadow-[0_4px_12px_rgba(0,243,255,0.4)]'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Palette className="w-4 h-4 text-fuchsia-400" />
+            <span>🎨 Theme Store</span>
           </button>
 
           <button
@@ -946,6 +984,42 @@ export const ContentManagerModal: React.FC = () => {
                 </div>
               </div>
 
+              {/* Analytics Summary Bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-slate-400 uppercase font-mono">Total Catalog</p>
+                    <p className="text-base font-black text-white">{series.length} Titles</p>
+                  </div>
+                  <Film className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-slate-400 uppercase font-mono">Total Episodes</p>
+                    <p className="text-base font-black text-white">{totalEpisodesCount} Ep</p>
+                  </div>
+                  <PlayCircle className="w-5 h-5 text-fuchsia-400" />
+                </div>
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-slate-400 uppercase font-mono">Trending Picks</p>
+                    <p className="text-base font-black text-amber-300">
+                      {series.filter((s) => s.tags?.includes('Trending')).length} Active
+                    </p>
+                  </div>
+                  <Flame className="w-5 h-5 text-amber-400" />
+                </div>
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-slate-400 uppercase font-mono">Active Theme</p>
+                    <p className="text-sm font-black text-cyan-300 truncate capitalize">
+                      {APP_THEMES.find((t) => t.id === currentTheme)?.name || currentTheme}
+                    </p>
+                  </div>
+                  <Palette className="w-5 h-5 text-cyan-400" />
+                </div>
+              </div>
+
               {/* Search & Filter Bar */}
               <div className="space-y-2">
                 <div className="relative">
@@ -1031,6 +1105,18 @@ export const ContentManagerModal: React.FC = () => {
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleTrending(item)}
+                                className={`p-2 rounded-xl border text-xs font-bold transition-all ${
+                                  item.tags?.includes('Trending')
+                                    ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                                    : 'bg-black border-slate-800 text-slate-400 hover:text-amber-300 hover:border-amber-500/40'
+                                }`}
+                                title={item.tags?.includes('Trending') ? 'Remove from Trending' : 'Mark as Trending'}
+                              >
+                                <Flame className="w-4 h-4" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => setExpandedSeriesId(isExpanded ? null : item.id)}
@@ -1184,6 +1270,139 @@ export const ContentManagerModal: React.FC = () => {
                     })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB: THEME STORE */}
+          {activeTab === 'theme' && (
+            <div className="space-y-5 animate-in fade-in duration-200">
+              {/* Theme Store Header Banner */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-cyan-950/60 via-purple-950/40 to-fuchsia-950/60 border border-cyan-500/40 shadow-[0_0_25px_rgba(0,243,255,0.15)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-[0_0_10px_rgba(0,243,255,0.4)]">
+                      <Palette className="w-4 h-4" />
+                    </span>
+                    <h3 className="text-sm sm:text-base font-black text-white">StreamX Global Theme Store</h3>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-400/50">
+                      Live Cloud Sync
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                    Change app visual styling, ambient neon glows, and color palettes in real-time. Changes are saved to Cloud Firestore and applied instantly across the entire application.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  <span className="text-xs font-mono text-slate-400">Current Theme:</span>
+                  <span className="text-xs font-black text-cyan-300 bg-black/80 px-2.5 py-1 rounded-xl border border-cyan-400/50 shadow-[0_0_8px_rgba(0,243,255,0.3)] capitalize">
+                    {APP_THEMES.find((t) => t.id === currentTheme)?.name || currentTheme}
+                  </span>
+                </div>
+              </div>
+
+              {/* Theme Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {APP_THEMES.map((theme) => {
+                  const isActive = currentTheme === theme.id;
+
+                  return (
+                    <div
+                      key={theme.id}
+                      onClick={async () => {
+                        haptic(45);
+                        await setAppTheme(theme.id);
+                        setStatusMsg({
+                          type: 'success',
+                          text: `Applied "${theme.name}" theme! Synced to Cloud Firestore.`
+                        });
+                        setTimeout(() => setStatusMsg(null), 3000);
+                      }}
+                      className={`relative overflow-hidden rounded-2xl p-4 transition-all duration-200 cursor-pointer flex flex-col justify-between group border select-none ${
+                        isActive
+                          ? 'bg-black border-2 border-cyan-300 shadow-[0_0_25px_rgba(0,243,255,0.5)] ring-2 ring-cyan-400/50 scale-[1.02]'
+                          : 'bg-black/80 border-slate-800 hover:border-cyan-500/50 hover:shadow-[0_0_15px_rgba(0,243,255,0.2)]'
+                      }`}
+                    >
+                      {/* Gradient Banner Preview */}
+                      <div className="space-y-3">
+                        <div
+                          className={`w-full h-16 rounded-xl bg-gradient-to-r ${theme.previewGradient} relative overflow-hidden flex items-center justify-between px-3 shadow-md`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="w-4 h-4 rounded-full border border-white/60 shadow-md"
+                              style={{ backgroundColor: theme.primaryColor }}
+                            />
+                            <span
+                              className="w-4 h-4 rounded-full border border-white/60 shadow-md"
+                              style={{ backgroundColor: theme.secondaryColor }}
+                            />
+                          </div>
+
+                          <span className="text-[10px] font-black text-black bg-white/90 px-2 py-0.5 rounded-full shadow font-mono">
+                            {theme.tag}
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-black text-sm text-white group-hover:text-cyan-300 transition-colors">
+                              {theme.name}
+                            </h4>
+                            {isActive && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-cyan-300 font-mono bg-cyan-950/80 px-2 py-0.5 rounded-full border border-cyan-400/50 shadow-[0_0_8px_rgba(0,243,255,0.4)]">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                                ACTIVE
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-semibold text-slate-400 mt-0.5 font-mono">
+                            {theme.subtitle}
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                            {theme.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <div className="pt-4 mt-auto">
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            haptic(50);
+                            await setAppTheme(theme.id);
+                            setStatusMsg({
+                              type: 'success',
+                              text: `Applied "${theme.name}" theme! Synced to Cloud Firestore.`
+                            });
+                            setTimeout(() => setStatusMsg(null), 3000);
+                          }}
+                          className={`w-full py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                            isActive
+                              ? 'bg-gradient-to-r from-cyan-500 via-sky-500 to-fuchsia-600 text-white shadow-[0_0_15px_rgba(0,243,255,0.6)] border border-cyan-300'
+                              : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-cyan-500/40 hover:text-white'
+                          }`}
+                        >
+                          {isActive ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>Current Active Theme</span>
+                            </>
+                          ) : (
+                            <>
+                              <Palette className="w-3.5 h-3.5" />
+                              <span>Apply Theme</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

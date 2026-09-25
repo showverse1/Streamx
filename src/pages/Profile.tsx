@@ -5,11 +5,8 @@ import {
   Play,
   Clock,
   ShieldCheck,
-  Smartphone,
-  CheckCircle,
   Film,
   Sparkles,
-  ChevronRight,
   AlertTriangle,
   X,
   Search as SearchIcon,
@@ -346,14 +343,17 @@ export const Profile: React.FC = () => {
             {watchHistory.map((item, idx) => (
               <div
                 key={`${item.seriesId}_s${item.seasonNum}_e${item.episodeNum}_${idx}`}
-                className="flex items-center justify-between p-2.5 rounded-2xl bg-black border border-cyan-500/30 hover:border-cyan-400 hover:shadow-[0_0_20px_rgba(0,243,255,0.25)] transition-all group shadow-md"
+                className="relative overflow-hidden flex items-center justify-between p-3 rounded-2xl bg-black/90 border border-cyan-500/40 hover:border-cyan-300 hover:shadow-[0_0_24px_rgba(0,243,255,0.35)] transition-all group shadow-lg"
               >
+                {/* Left Vertical Neon Glow Bar */}
+                <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-cyan-400 via-sky-400 to-fuchsia-500 shadow-[0_0_8px_#00f3ff]" />
+
                 {/* Thumbnail & Title with SkeletonImage */}
                 <div
                   onClick={() => handleOpenSeries(item.seriesId)}
-                  className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+                  className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer pl-1"
                 >
-                  <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-slate-950 shrink-0 border border-cyan-500/40 shadow-[0_0_8px_rgba(0,243,255,0.3)]">
+                  <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-slate-950 shrink-0 border border-cyan-400/60 shadow-[0_0_12px_rgba(0,243,255,0.35)]">
                     <SkeletonImage
                       src={item.seriesThumbnail}
                       alt={item.seriesTitle || 'Thumbnail'}
@@ -362,7 +362,7 @@ export const Profile: React.FC = () => {
                     <div className="absolute inset-0 bg-black/20" />
                     <div className="absolute bottom-0 inset-x-0 h-1 bg-slate-900">
                       <div
-                        className="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 shadow-[0_0_6px_#00f3ff]"
+                        className="h-full bg-gradient-to-r from-cyan-400 via-sky-400 to-fuchsia-500 shadow-[0_0_8px_#00f3ff]"
                         style={{
                           width: `${
                             item.progressSeconds && item.durationSeconds
@@ -375,23 +375,25 @@ export const Profile: React.FC = () => {
                   </div>
 
                   <div className="min-w-0 pr-2">
-                    <h4 className="font-bold text-xs text-white truncate group-hover:text-cyan-300 transition-colors">
+                    <h4 className="font-extrabold text-xs text-white truncate group-hover:text-cyan-300 transition-colors drop-shadow">
                       {item.seriesTitle || 'Streaming Series'}
                     </h4>
-                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                      Season {item.seasonNum} • Episode {item.episodeNum}
-                    </p>
-                    <span className="text-[10px] text-cyan-400/90 font-mono">
-                      {formatTimestamp(item.timestamp)}
-                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded-full border border-cyan-400/40 font-mono font-bold shadow-[0_0_8px_rgba(0,243,255,0.25)]">
+                        S{item.seasonNum} : E{item.episodeNum}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {formatTimestamp(item.timestamp)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Resume Play Button (Neon Gradient) */}
+                {/* Resume Play Button (Vibrant Neon Glow) */}
                 <button
                   type="button"
                   onClick={() => handleResume(item)}
-                  className="p-2.5 rounded-xl bg-gradient-to-tr from-cyan-500 via-sky-500 to-fuchsia-600 hover:from-cyan-400 hover:to-fuchsia-500 text-white shadow-[0_0_15px_rgba(0,243,255,0.5)] border border-cyan-300 active:scale-90 transition-all shrink-0 cursor-pointer"
+                  className="p-2.5 rounded-xl bg-gradient-to-tr from-cyan-500 via-sky-500 to-fuchsia-600 hover:from-cyan-400 hover:to-fuchsia-500 text-white shadow-[0_0_16px_rgba(0,243,255,0.6)] border border-cyan-300 active:scale-90 transition-all shrink-0 cursor-pointer"
                   title="Resume Playing"
                 >
                   <Play className="w-3.5 h-3.5 fill-current ml-0.5" />

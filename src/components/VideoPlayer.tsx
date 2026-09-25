@@ -14,7 +14,9 @@ import {
   SkipForward,
   Scaling,
   HardDrive,
-  Share2
+  Share2,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { sanitizeVideoUrl } from '../services/videoUtils';
@@ -35,7 +37,20 @@ export const VideoPlayer: React.FC = () => {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isScreenLocked, setIsScreenLocked] = useState(false);
+  const [lockToast, setLockToast] = useState<string | null>(null);
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState(false);
+  const unlockPromptTimeoutRef = useRef<number | null>(null);
   const [isPiPActive, setIsPiPActive] = useState(false);
+
+  const handleLockedScreenTap = () => {
+    haptic(30);
+    setShowUnlockPrompt(true);
+    if (unlockPromptTimeoutRef.current) window.clearTimeout(unlockPromptTimeoutRef.current);
+    unlockPromptTimeoutRef.current = window.setTimeout(() => {
+      setShowUnlockPrompt(false);
+    }, 3500);
+  };
   const [videoError, setVideoError] = useState(false);
   const [isOfflinePlaying, setIsOfflinePlaying] = useState(false);
   const [activeVideoUrl, setActiveVideoUrl] = useState(sanitizeVideoUrl(activePlayback?.episode.videoUrl) || '');
@@ -284,11 +299,13 @@ export const VideoPlayer: React.FC = () => {
     } else {
       document.exitFullscreen?.().catch(() => {});
       setIsFullscreen(false);
+      setIsScreenLocked(false);
     }
   };
 
   // Seek helper
   const seekRelative = (seconds: number) => {
+    if (isScreenLocked) return;
     haptic(45);
     const video = videoRef.current;
     if (!video) return;
@@ -306,6 +323,7 @@ export const VideoPlayer: React.FC = () => {
 
   // Touch Gestures: Left-half Brightness, Right-half Volume, Center Tap, Double-Tap Seek
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isScreenLocked) return;
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
     const x = touch.clientX - rect.left;
@@ -478,10 +496,15 @@ export const VideoPlayer: React.FC = () => {
         className="absolute inset-y-0 left-0 w-1/2 z-25 cursor-pointer select-none [-webkit-tap-highlight-color:transparent]"
         onClick={(e) => {
           e.stopPropagation();
+          if (isScreenLocked) {
+            handleLockedScreenTap();
+            return;
+          }
           resetControlsTimeout();
         }}
         onDoubleClick={(e) => {
           e.stopPropagation();
+          if (isScreenLocked) return;
           seekRelative(-10);
         }}
         aria-label="Rewind 10s"
@@ -490,10 +513,15 @@ export const VideoPlayer: React.FC = () => {
         className="absolute inset-y-0 right-0 w-1/2 z-25 cursor-pointer select-none [-webkit-tap-highlight-color:transparent]"
         onClick={(e) => {
           e.stopPropagation();
+          if (isScreenLocked) {
+            handleLockedScreenTap();
+            return;
+          }
           resetControlsTimeout();
         }}
         onDoubleClick={(e) => {
           e.stopPropagation();
+          if (isScreenLocked) return;
           seekRelative(10);
         }}
         aria-label="Forward 10s"
@@ -568,14 +596,80 @@ export const VideoPlayer: React.FC = () => {
         </div>
       )}
 
+      {/* Fullscreen Tap to Lock / Unlock Side Button */}
+      <div className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-40 select-none">
+        {isScreenLocked ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              haptic(60);
+              setIsScreenLocked(false);
+              setShowControls(true);
+              setLockToast('Screen Unlocked');
+              setTimeout(() => setLockToast(null), 2000);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-full bg-rose-600/90 hover:bg-rose-500 backdrop-blur-md border-2 border-white text-white shadow-[0_0_22px_rgba(244,63,94,0.85)] active:scale-90 transition-all cursor-pointer ${
+              showUnlockPrompt ? 'opacity-100 scale-100 animate-pulse' : 'opacity-80 scale-95 hover:opacity-100'
+            }`}
+            title="Tap to Unlock Screen"
+            aria-label="Tap to Unlock Screen"
+          >
+            <Lock className="w-4 h-4 text-white" />
+            <span className="text-[10px] font-black tracking-wider uppercase drop-shadow">Unlock</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              haptic(50);
+              setIsScreenLocked(true);
+              setShowControls(false);
+              setShowUnlockPrompt(true);
+              setLockToast('Screen Locked');
+              setTimeout(() => {
+                setLockToast(null);
+                setShowUnlockPrompt(false);
+              }, 2500);
+            }}
+            className={`p-2.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/50 text-white shadow-[0_0_14px_rgba(255,255,255,0.3)] active:scale-90 transition-all cursor-pointer flex items-center justify-center group ${
+              showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+            }`}
+            title="Lock Screen Controls"
+            aria-label="Lock Screen Controls"
+          >
+            <Unlock className="w-4 h-4 text-white group-hover:text-cyan-300" />
+          </button>
+        )}
+      </div>
+
+      {/* Lock/Unlock Toast Alert */}
+      {lockToast && (
+        <div className="absolute top-6 inset-x-0 flex items-center justify-center pointer-events-none z-50 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/90 backdrop-blur-md border border-white/40 text-white text-xs font-bold shadow-2xl">
+            {lockToast.includes('Locked') ? (
+              <Lock className="w-3.5 h-3.5 text-rose-400" />
+            ) : (
+              <Unlock className="w-3.5 h-3.5 text-cyan-400" />
+            )}
+            <span>{lockToast}</span>
+          </div>
+        </div>
+      )}
+
       {/* Custom React UI Overlay Controls */}
       <div
-        className={`absolute inset-0 flex flex-col justify-between pointer-events-none transition-opacity duration-300 z-20 ${
-          showControls ? 'opacity-100' : 'opacity-0'
+        className={`absolute inset-0 flex flex-col justify-between pointer-events-none transition-all duration-300 z-20 ${
+          showControls && !isScreenLocked
+            ? 'opacity-100 pointer-events-auto visible'
+            : 'opacity-0 pointer-events-none select-none invisible'
         }`}
       >
         {/* TOP BAR */}
-        <div className="flex items-center justify-between p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-auto safe-pt">
+        <div className={`flex items-center justify-between p-4 bg-gradient-to-b from-black/90 via-black/50 to-transparent safe-pt ${
+          showControls && !isScreenLocked ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}>
           <div className="flex items-center gap-3 min-w-0 pr-4">
             <button
               type="button"
@@ -674,56 +768,67 @@ export const VideoPlayer: React.FC = () => {
           </div>
         </div>
 
-        {/* CENTER CONTROLS (Crisp White Structure & Smaller Sizing, No Next Button near pause) */}
-        <div className="flex items-center justify-center gap-4 sm:gap-6 pointer-events-auto">
-          {/* Rewind 10s */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              seekRelative(-10);
-            }}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/70 backdrop-blur-md text-white active:scale-90 transition-all shadow-[0_0_10px_rgba(255,255,255,0.35)] border-2 border-white hover:bg-white/20 flex flex-col items-center justify-center cursor-pointer"
-            title="Rewind 10s"
+        {/* CENTER CONTROLS with Visible Crisp White Structure */}
+        <div className="flex items-center justify-center pointer-events-none">
+          <div
+            className={`flex items-center justify-center gap-2.5 sm:gap-3 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-white/15 hover:bg-white/20 backdrop-blur-xl border border-white/60 shadow-[0_4px_24px_rgba(255,255,255,0.2)] transition-all ${
+              showControls && !isScreenLocked ? 'pointer-events-auto' : 'pointer-events-none'
+            }`}
           >
-            <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
-            <span className="text-[7px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
-          </button>
+            {/* Rewind 10s */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                seekRelative(-10);
+              }}
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/10 hover:bg-white/25 active:scale-90 text-white border border-white/80 transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.25)]"
+              title="Rewind 10s"
+              aria-label="Rewind 10 seconds"
+            >
+              <RotateCcw className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white stroke-[2.5]" />
+              <span className="text-[5.5px] sm:text-[6px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
+            </button>
 
-          {/* Center Play/Pause Compact with White Outline */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              togglePlayPause();
-            }}
-            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/80 backdrop-blur-md text-white shadow-[0_0_16px_rgba(255,255,255,0.5)] border-2 border-white active:scale-90 hover:scale-105 transition-all flex items-center justify-center cursor-pointer"
-            title={isPlaying ? 'Pause' : 'Play'}
-          >
-            {isPlaying ? (
-              <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
-            ) : (
-              <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white ml-0.5 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
-            )}
-          </button>
+            {/* Center Play/Pause Compact */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePlayPause();
+              }}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white text-black hover:bg-white/95 active:scale-90 transition-all shadow-[0_0_16px_rgba(255,255,255,0.9)] border-2 border-white flex items-center justify-center cursor-pointer"
+              title={isPlaying ? 'Pause' : 'Play'}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? (
+                <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-black text-black" />
+              ) : (
+                <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-black text-black ml-0.5" />
+              )}
+            </button>
 
-          {/* Forward 10s */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              seekRelative(10);
-            }}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/70 backdrop-blur-md text-white active:scale-90 transition-all shadow-[0_0_10px_rgba(255,255,255,0.35)] border-2 border-white hover:bg-white/20 flex flex-col items-center justify-center cursor-pointer"
-            title="Forward 10s"
-          >
-            <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
-            <span className="text-[7px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
-          </button>
+            {/* Forward 10s */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                seekRelative(10);
+              }}
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/10 hover:bg-white/25 active:scale-90 text-white border border-white/80 transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.25)]"
+              title="Forward 10s"
+              aria-label="Forward 10 seconds"
+            >
+              <RotateCw className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white stroke-[2.5]" />
+              <span className="text-[5.5px] sm:text-[6px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
+            </button>
+          </div>
         </div>
 
         {/* BOTTOM BAR WITH RANGE SEEKBAR */}
-        <div className="p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-auto safe-pb flex flex-col gap-2">
+        <div className={`p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent safe-pb flex flex-col gap-2 ${
+          showControls && !isScreenLocked ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}>
           {/* Progress Seekbar Slider */}
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono text-slate-300 w-12 text-right">
@@ -757,7 +862,7 @@ export const VideoPlayer: React.FC = () => {
             </div>
 
             <span className="text-xs font-mono text-cyan-300 w-12 font-semibold">
-              {duration > 0 ? formatTime(duration) : (currentTime > 0 ? formatTime(currentTime) : '--:--')}
+              {duration > 0 && Math.abs(duration - currentTime) > 1 ? formatTime(duration) : ''}
             </span>
           </div>
 
@@ -793,17 +898,17 @@ export const VideoPlayer: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Next Episode Button at bottom ('niche whi rahn do') */}
+              {/* Next Episode Button with Crisp White Structure */}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleNextEpisode();
                 }}
-                className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/80 hover:bg-cyan-900/90 active:scale-95 text-xs font-extrabold text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(0,243,255,0.3)] backdrop-blur-md transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 border border-white/70 text-white text-[10px] font-bold transition active:scale-95 shadow-[0_0_10px_rgba(255,255,255,0.25)] backdrop-blur-md cursor-pointer"
               >
-                <span>Next Episode</span>
-                <SkipForward className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Next Ep</span>
+                <SkipForward className="w-3 h-3 stroke-[2.5] text-white" />
               </button>
             </div>
           </div>

@@ -20,6 +20,7 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocFromServer,
   query,
   orderBy,
   where,
@@ -38,7 +39,7 @@ import { Series, UserProfile, WatchHistoryItem, EpisodeComment } from './types';
 // Initial series catalog (Clean - no AI generated dummy items)
 export const INITIAL_SERIES_DATA: Series[] = [];
 
-// Firebase App & Services Initialization with resilient offline cache & auto-detected long-polling
+// Firebase App & Services Initialization with resilient offline cache & forced long-polling
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
@@ -49,7 +50,7 @@ function createFirestoreInstance() {
 
   try {
     return initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager()
       })
@@ -60,6 +61,18 @@ function createFirestoreInstance() {
 }
 
 export const db = createFirestoreInstance();
+
+// Validate Firestore connection on boot as recommended by the Firebase skill
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn('Firestore offline notice: client operating in offline mode.');
+    }
+  }
+}
+testConnection();
 
 // Save or update a single Series/Movie in Firestore
 export async function saveSeriesToFirestore(series: Series): Promise<void> {
@@ -536,3 +549,27 @@ export async function deleteEpisodeComment(
     console.warn('Comment deletion warning:', err);
   }
 }
+
+// Global App Theme Cloud Sync
+export async function saveAppThemeToFirestore(themeId: string): Promise<void> {
+  try {
+    const docRef = doc(db, 'settings', 'app_theme');
+    await setDoc(docRef, { themeId, updatedAt: Date.now() }, { merge: true });
+  } catch (err) {
+    console.warn('Theme Firestore sync notice:', err);
+  }
+}
+
+export async function fetchAppThemeFromFirestore(): Promise<string | null> {
+  try {
+    const docRef = doc(db, 'settings', 'app_theme');
+    const snap = await getDoc(docRef);
+    if (snap.exists() && snap.data().themeId) {
+      return snap.data().themeId as string;
+    }
+  } catch (err) {
+    console.warn('Theme Firestore fetch notice:', err);
+  }
+  return null;
+}
+

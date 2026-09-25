@@ -26,7 +26,9 @@ import {
   Share2,
   Flame,
   Tv,
-  Compass
+  Compass,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Episode, Series, Season } from '../types';
@@ -149,9 +151,22 @@ export const SeriesDetail: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showControls, setShowControls] = useState<boolean>(true);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isScreenLocked, setIsScreenLocked] = useState<boolean>(false);
+  const [lockToast, setLockToast] = useState<string | null>(null);
+  const [showUnlockPrompt, setShowUnlockPrompt] = useState<boolean>(false);
+  const unlockPromptTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
   const [activeVideoUrl, setActiveVideoUrl] = useState<string>('');
   const [videoError, setVideoError] = useState<boolean>(false);
+
+  const handleLockedScreenTap = () => {
+    haptic(30);
+    setShowUnlockPrompt(true);
+    if (unlockPromptTimeoutRef.current) clearTimeout(unlockPromptTimeoutRef.current);
+    unlockPromptTimeoutRef.current = setTimeout(() => {
+      setShowUnlockPrompt(false);
+    }, 3500);
+  };
 
   // Auto-play immediately on series mount (No manual play button needed!)
   useEffect(() => {
@@ -714,6 +729,7 @@ export const SeriesDetail: React.FC = () => {
         } catch (_) {}
       }
     } else {
+      setIsScreenLocked(false);
       const exit = document.exitFullscreen || (document as any).webkitExitFullscreen;
       if (exit) {
         try {
@@ -756,6 +772,7 @@ export const SeriesDetail: React.FC = () => {
 
   // Universal gesture controller for mobile touch and desktop mouse swipe
   const startGesture = (clientX: number, clientY: number, containerRect: DOMRect) => {
+    if (isScreenLocked) return;
     const x = clientX - containerRect.left;
     const y = clientY - containerRect.top;
 
@@ -886,6 +903,7 @@ export const SeriesDetail: React.FC = () => {
 
   // Dedicated YouTube-style Double Tap / Click coordinator
   const performDoubleTapSeek = (side: 'left' | 'right') => {
+    if (isScreenLocked) return;
     haptic(45);
     if (side === 'right') {
       handleSeek(10);
@@ -899,6 +917,10 @@ export const SeriesDetail: React.FC = () => {
   };
 
   const handlePointerZoneClick = (side: 'left' | 'right', clientX: number, clientY: number) => {
+    if (isScreenLocked) {
+      handleLockedScreenTap();
+      return;
+    }
     const now = Date.now();
     const last = lastTapRef.current;
 
@@ -1233,14 +1255,82 @@ export const SeriesDetail: React.FC = () => {
               </div>
             )}
 
-            {/* Video Controls Overlay - Auto-hides during playback, stays visible when paused */}
+            {/* Fullscreen Tap to Lock / Unlock Side Button ("iska button side me kerna taki acha lage") */}
+            {isFullscreen && (
+              <div className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-40 select-none">
+                {isScreenLocked ? (
+                  /* Screen is Locked: Tap anywhere shows floating Unlock button with neon glow */
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      haptic(60);
+                      setIsScreenLocked(false);
+                      setShowControls(true);
+                      setLockToast('Screen Unlocked');
+                      setTimeout(() => setLockToast(null), 2000);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-full bg-rose-600/90 hover:bg-rose-500 backdrop-blur-md border-2 border-white text-white shadow-[0_0_22px_rgba(244,63,94,0.85)] active:scale-90 transition-all cursor-pointer ${
+                      showUnlockPrompt ? 'opacity-100 scale-100 animate-pulse' : 'opacity-80 scale-95 hover:opacity-100'
+                    }`}
+                    title="Tap to Unlock Screen"
+                    aria-label="Tap to Unlock Screen"
+                  >
+                    <Lock className="w-4 h-4 text-white" />
+                    <span className="text-[10px] font-black tracking-wider uppercase drop-shadow">Unlock</span>
+                  </button>
+                ) : (
+                  /* Screen is Unlocked: Lock button shows on side when controls are visible */
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      haptic(50);
+                      setIsScreenLocked(true);
+                      setShowControls(false);
+                      setShowUnlockPrompt(true);
+                      setLockToast('Screen Locked');
+                      setTimeout(() => {
+                        setLockToast(null);
+                        setShowUnlockPrompt(false);
+                      }, 2500);
+                    }}
+                    className={`p-2.5 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/50 text-white shadow-[0_0_14px_rgba(255,255,255,0.3)] active:scale-90 transition-all cursor-pointer flex items-center justify-center group ${
+                      showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                    }`}
+                    title="Lock Screen Controls"
+                    aria-label="Lock Screen Controls"
+                  >
+                    <Unlock className="w-4 h-4 text-white group-hover:text-cyan-300" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Lock/Unlock Toast Alert */}
+            {lockToast && (
+              <div className="absolute top-6 inset-x-0 flex items-center justify-center pointer-events-none z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/90 backdrop-blur-md border border-white/40 text-white text-xs font-bold shadow-2xl">
+                  {lockToast.includes('Locked') ? (
+                    <Lock className="w-3.5 h-3.5 text-rose-400" />
+                  ) : (
+                    <Unlock className="w-3.5 h-3.5 text-cyan-400" />
+                  )}
+                  <span>{lockToast}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Video Controls Overlay - Auto-hides during playback, stays visible when paused, fully disabled when locked or hidden */}
             <div
-              className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/70 flex flex-col justify-between p-3 sm:p-4 transition-opacity duration-300 pointer-events-none z-25 ${
-                showControls ? 'opacity-100' : 'opacity-0'
+              className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/70 flex flex-col justify-between p-3 sm:p-4 transition-all duration-300 z-25 ${
+                showControls && !isScreenLocked
+                  ? 'opacity-100 pointer-events-auto visible'
+                  : 'opacity-0 pointer-events-none select-none invisible'
               }`}
             >
               {/* Top Controls Bar */}
-              <div className="flex items-center justify-between gap-2 pointer-events-auto">
+              <div className={`flex items-center justify-between gap-2 ${showControls && !isScreenLocked ? 'pointer-events-auto' : 'pointer-events-none'}`}>
                 <div className="flex items-center gap-2.5 min-w-0">
                   <button
                     type="button"
@@ -1323,53 +1413,62 @@ export const SeriesDetail: React.FC = () => {
                 </div>
               </div>
 
-              {/* Center Play/Pause, Rewind, & Forward Buttons (Crisp White Structure & Smaller Sizing, No Next Button here) */}
-              <div className="flex items-center justify-center gap-4 sm:gap-6 my-auto pointer-events-none">
-                {/* 10s Rewind (Small & Crisp White) */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSeek(-10);
-                  }}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/70 backdrop-blur-md text-white active:scale-90 transition-all shadow-[0_0_10px_rgba(255,255,255,0.35)] border-2 border-white hover:bg-white/20 flex flex-col items-center justify-center pointer-events-auto cursor-pointer"
-                  title="Rewind 10s"
+              {/* Center Play/Pause, Rewind, & Forward Buttons with Visible Crisp White Structure */}
+              <div className="my-auto flex items-center justify-center pointer-events-none">
+                <div
+                  className={`flex items-center justify-center gap-2.5 sm:gap-3 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-white/15 hover:bg-white/20 backdrop-blur-xl border border-white/60 shadow-[0_4px_24px_rgba(255,255,255,0.2)] transition-all ${
+                    showControls && !isScreenLocked ? 'pointer-events-auto' : 'pointer-events-none'
+                  }`}
                 >
-                  <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
-                  <span className="text-[7px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
-                </button>
+                  {/* 10s Rewind (Small with Crisp White Structure) */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSeek(-10);
+                    }}
+                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/10 hover:bg-white/25 active:scale-90 text-white border border-white/80 transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.25)]"
+                    title="Rewind 10s"
+                    aria-label="Rewind 10 seconds"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white stroke-[2.5]" />
+                    <span className="text-[5.5px] sm:text-[6px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
+                  </button>
 
-                {/* Play/Pause (Compact & Crisp White) */}
-                <button
-                  type="button"
-                  onClick={handlePlayPause}
-                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/80 backdrop-blur-md text-white shadow-[0_0_16px_rgba(255,255,255,0.5)] active:scale-90 hover:scale-105 transition-all border-2 border-white flex items-center justify-center pointer-events-auto cursor-pointer"
-                  title={isVideoPaused ? 'Play' : 'Pause'}
-                >
-                  {isVideoPaused ? (
-                    <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white ml-0.5 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
-                  ) : (
-                    <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
-                  )}
-                </button>
+                  {/* Play/Pause (Small with High-Contrast Crisp White Background) */}
+                  <button
+                    type="button"
+                    onClick={handlePlayPause}
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white text-black hover:bg-white/95 active:scale-90 transition-all shadow-[0_0_16px_rgba(255,255,255,0.9)] border-2 border-white flex items-center justify-center cursor-pointer"
+                    title={isVideoPaused ? 'Play' : 'Pause'}
+                    aria-label={isVideoPaused ? 'Play' : 'Pause'}
+                  >
+                    {isVideoPaused ? (
+                      <Play className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-black text-black ml-0.5" />
+                    ) : (
+                      <Pause className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-black text-black" />
+                    )}
+                  </button>
 
-                {/* 10s Forward (Small & Crisp White) */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSeek(10);
-                  }}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/70 backdrop-blur-md text-white active:scale-90 transition-all shadow-[0_0_10px_rgba(255,255,255,0.35)] border-2 border-white hover:bg-white/20 flex flex-col items-center justify-center pointer-events-auto cursor-pointer"
-                  title="Forward 10s"
-                >
-                  <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
-                  <span className="text-[7px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
-                </button>
+                  {/* 10s Forward (Small with Crisp White Structure) */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSeek(10);
+                    }}
+                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/10 hover:bg-white/25 active:scale-90 text-white border border-white/80 transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.25)]"
+                    title="Forward 10s"
+                    aria-label="Forward 10 seconds"
+                  >
+                    <RotateCw className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white stroke-[2.5]" />
+                    <span className="text-[5.5px] sm:text-[6px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
+                  </button>
+                </div>
               </div>
 
               {/* Bottom Progress Bar, Times, and Fullscreen */}
-              <div className="space-y-2 pointer-events-auto">
+              <div className={`space-y-2 ${showControls && !isScreenLocked ? 'pointer-events-auto' : 'pointer-events-none'}`}>
                 <div
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1388,19 +1487,23 @@ export const SeriesDetail: React.FC = () => {
                 <div className="flex items-center justify-between text-xs font-mono text-slate-300">
                   <div className="flex items-center gap-2">
                     <span className="text-white font-bold">{formatSeconds(currentTime)}</span>
-                    <span className="text-slate-500">/</span>
-                    <span>{duration > 0 ? formatSeconds(duration) : (currentTime > 0 ? formatSeconds(currentTime) : '--:--')}</span>
+                    {duration > 0 && Math.abs(duration - currentTime) > 1 && (
+                      <>
+                        <span className="text-slate-500">/</span>
+                        <span className="text-slate-400">{formatSeconds(duration)}</span>
+                      </>
+                    )}
 
-                    {/* Next Episode Button only at bottom ('niche jo rahne do bus') */}
+                    {/* Next Episode Button with Crisp White Structure ("Next button hai inhe thoda small kerdo aur inka structure dikhe white me taki acha dikhe") */}
                     {activeSeason.episodes.findIndex((e) => e.id === currentPlayingEpisode.id) < activeSeason.episodes.length - 1 && (
                       <button
                         type="button"
                         onClick={playNextEpisode}
-                        className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-400/50 text-cyan-300 text-[10px] font-sans font-bold transition active:scale-95 ml-2 shadow-[0_0_8px_rgba(0,243,255,0.3)] cursor-pointer"
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/70 text-white text-[9.5px] font-sans font-bold transition active:scale-95 ml-2 shadow-[0_0_8px_rgba(255,255,255,0.25)] backdrop-blur-md cursor-pointer"
                         title="Next Episode"
                       >
                         <span>Next Ep</span>
-                        <SkipForward className="w-3 h-3 stroke-[2.2]" />
+                        <SkipForward className="w-2.5 h-2.5 stroke-[2.5] text-white" />
                       </button>
                     )}
                   </div>
@@ -1567,8 +1670,8 @@ export const SeriesDetail: React.FC = () => {
                   }}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all duration-200 active:scale-95 cursor-pointer ${
                     isSelected
-                      ? 'bg-gradient-to-r from-cyan-500 via-sky-500 to-fuchsia-600 text-white shadow-[0_0_15px_rgba(0,243,255,0.6)] border border-cyan-300'
-                      : 'bg-black text-slate-300 border border-slate-800 hover:border-cyan-500/40 hover:text-white'
+                      ? 'bg-gradient-to-r from-cyan-500 via-sky-500 to-fuchsia-600 text-white shadow-[0_0_20px_rgba(0,243,255,0.7)] border-2 border-cyan-300 ring-2 ring-cyan-400/40'
+                      : 'bg-black/90 text-slate-300 border border-cyan-500/30 hover:border-cyan-400 hover:text-cyan-300 hover:shadow-[0_0_12px_rgba(0,243,255,0.3)]'
                   }`}
                 >
                   Season {season.seasonNumber}
@@ -1584,7 +1687,7 @@ export const SeriesDetail: React.FC = () => {
             <div>
               <h3 className="font-extrabold text-sm text-white tracking-tight flex items-center gap-2">
                 <span>Episodes: Season {activeSeason.seasonNumber}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 font-mono font-bold border border-cyan-500/40">
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-950/90 text-cyan-300 font-mono font-bold border border-cyan-400/60 shadow-[0_0_10px_rgba(0,243,255,0.35)]">
                   {activeSeason.episodes.length}
                 </span>
               </h3>
@@ -1596,17 +1699,17 @@ export const SeriesDetail: React.FC = () => {
             {/* Compact Legend */}
             <div className="flex items-center gap-2.5 text-[10px] text-slate-400">
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded bg-cyan-400 shadow-[0_0_6px_#00f3ff]" />
-                <span className="text-cyan-300 font-semibold">Playing</span>
+                <span className="w-2 h-2 rounded bg-cyan-400 shadow-[0_0_8px_#00f3ff]" />
+                <span className="text-cyan-300 font-bold">Playing</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded bg-fuchsia-950 border border-fuchsia-400" />
-                <span className="text-fuchsia-300">Watched</span>
+                <span className="w-2 h-2 rounded bg-fuchsia-950 border border-fuchsia-400 shadow-[0_0_6px_#ff007f]" />
+                <span className="text-fuchsia-300 font-bold">Watched</span>
               </div>
             </div>
           </div>
 
-          {/* Episode Section in ONLY ONE ROW (Horizontal Scrollable Strip with Neon Glow) */}
+          {/* Episode Section in ONLY ONE ROW (Horizontal Scrollable Strip with Vibrant Neon Glow) */}
           <div className="flex items-center gap-2.5 overflow-x-auto pb-2 no-scrollbar scroll-smooth">
             {activeSeason.episodes.map((ep) => {
               const watched = isEpisodeWatched(ep.episodeNumber, activeSeason.seasonNumber);
@@ -1619,25 +1722,36 @@ export const SeriesDetail: React.FC = () => {
                   key={ep.id}
                   type="button"
                   onClick={() => handlePlayEpisode(ep, activeSeason.seasonNumber)}
-                  className={`group relative shrink-0 min-w-[52px] sm:min-w-[56px] h-12 sm:h-13 px-3 rounded-xl flex items-center justify-center transition-all duration-150 border active:scale-95 select-none cursor-pointer ${
+                  className={`group relative shrink-0 min-w-[52px] sm:min-w-[56px] h-12 sm:h-13 px-3 rounded-xl flex items-center justify-center transition-all duration-150 border active:scale-95 select-none cursor-pointer overflow-hidden ${
                     isCurrentlyPlaying
-                      ? 'bg-gradient-to-tr from-cyan-500 via-sky-500 to-fuchsia-600 border-2 border-cyan-300 text-white font-black shadow-[0_0_20px_rgba(0,243,255,0.7)] ring-2 ring-cyan-400/50 scale-105 z-10'
+                      ? 'bg-gradient-to-tr from-cyan-500 via-sky-500 to-fuchsia-600 border-2 border-cyan-300 text-white font-black shadow-[0_0_25px_rgba(0,243,255,0.85),inset_0_0_12px_rgba(0,243,255,0.45)] ring-2 ring-cyan-400/60 scale-105 z-10 animate-pulse'
                       : watched
-                      ? 'bg-black/90 border border-fuchsia-500/60 text-fuchsia-200 shadow-[0_0_8px_rgba(255,0,127,0.25)]'
-                      : 'bg-black/90 border border-slate-800 text-slate-200 hover:border-cyan-500/50 hover:text-white shadow-sm'
+                      ? 'bg-fuchsia-950/40 border border-fuchsia-400/80 text-fuchsia-200 shadow-[0_0_14px_rgba(255,0,127,0.35)] hover:border-fuchsia-300'
+                      : 'bg-black/90 border border-cyan-500/40 text-slate-200 hover:border-cyan-400 hover:text-cyan-300 hover:shadow-[0_0_16px_rgba(0,243,255,0.4)]'
                   }`}
                   title={`Play Episode ${ep.episodeNumber}: ${ep.title}`}
                 >
-                  <span className="font-black text-sm tracking-tight">
+                  <span className="font-mono font-black text-sm tracking-tight drop-shadow">
                     E{ep.episodeNumber}
                   </span>
 
                   {/* Watched Small Tick Badge */}
                   {!isCurrentlyPlaying && watched && (
                     <div className="absolute top-1 right-1">
-                      <CheckCircle2 className="w-2.5 h-2.5 text-fuchsia-400" />
+                      <CheckCircle2 className="w-2.5 h-2.5 text-fuchsia-400 drop-shadow-[0_0_4px_#ff007f]" />
                     </div>
                   )}
+
+                  {/* Neon Bottom Accent Line */}
+                  <div
+                    className={`absolute bottom-0 inset-x-2 h-0.5 rounded-full transition-all ${
+                      isCurrentlyPlaying
+                        ? 'bg-cyan-300 shadow-[0_0_8px_#00f3ff]'
+                        : watched
+                        ? 'bg-fuchsia-400 shadow-[0_0_6px_#ff007f]'
+                        : 'bg-transparent group-hover:bg-cyan-400/60'
+                    }`}
+                  />
 
                   {/* Playing mini animated indicator */}
                   {isCurrentlyPlaying && (

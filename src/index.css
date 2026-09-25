@@ -24,6 +24,8 @@
 html, body {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: manipulation;
   background-color: #000000;
   color: #f1f5f9;
 }
@@ -32,6 +34,12 @@ html, body {
   -webkit-tap-highlight-color: transparent !important;
   outline: none !important;
   user-select: none;
+}
+
+/* Hardware accelerated video and UI layers for smooth 120fps */
+video {
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 /* GPU rendering layer hints for ultra-smooth 120fps animations */
