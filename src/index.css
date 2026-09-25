@@ -115,3 +115,16 @@ input[type="range"]::-webkit-slider-runnable-track {
   cursor: pointer;
   border-radius: 9999px;
 }
+
+@keyframes shimmerSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmerSweep 1.8s infinite linear;
+}

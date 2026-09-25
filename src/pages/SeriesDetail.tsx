@@ -22,10 +22,12 @@ import {
   FastForward,
   Rewind,
   SkipForward,
-  Gauge
+  Gauge,
+  Share2
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Episode, Series, Season } from '../types';
+import { SkeletonImage } from '../components/SkeletonImage';
 import { getOfflineVideoPlaybackUrl } from '../services/offlineStorage';
 import { sanitizeVideoUrl } from '../services/videoUtils';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
@@ -103,7 +105,7 @@ export const SeriesDetail: React.FC = () => {
 
   // Gesture HUD Overlay state
   const [gestureHUD, setGestureHUD] = useState<{
-    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'seek-swipe' | 'aspect' | 'speed' | null;
+    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'seek-swipe' | 'aspect' | 'speed' | 'share' | null;
     value: string | number;
     subValue?: string;
     progress?: number;
@@ -376,6 +378,11 @@ export const SeriesDetail: React.FC = () => {
     const curr = videoRef.current.currentTime;
     setCurrentTime(curr);
 
+    const vidDur = videoRef.current.duration;
+    if (vidDur && !isNaN(vidDur) && isFinite(vidDur) && vidDur > 0 && Math.abs(duration - vidDur) > 0.5) {
+      setDuration(vidDur);
+    }
+
     // Periodically update watch history progress
     if (Math.floor(curr) % 5 === 0 && Math.floor(curr) > 0) {
       recordEpisodeWatch(currentSeries, activeSeason.seasonNumber, currentPlayingEpisode, Math.floor(curr));
@@ -384,7 +391,9 @@ export const SeriesDetail: React.FC = () => {
 
   const handleLoadedMetadata = () => {
     if (!videoRef.current) return;
-    setDuration(videoRef.current.duration || currentPlayingEpisode?.durationSeconds || 0);
+    const vidDur = videoRef.current.duration;
+    const validDur = (vidDur && !isNaN(vidDur) && isFinite(vidDur) && vidDur > 0) ? vidDur : 0;
+    setDuration(validDur);
     if (initialEpisodeTarget?.startAtSecond && initialEpisodeTarget.startAtSecond > 0) {
       videoRef.current.currentTime = initialEpisodeTarget.startAtSecond;
     }
@@ -484,7 +493,7 @@ export const SeriesDetail: React.FC = () => {
   };
 
   const triggerHUD = (
-    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'seek-swipe' | 'aspect' | 'speed',
+    type: 'brightness' | 'volume' | 'seek-forward' | 'seek-backward' | 'seek-swipe' | 'aspect' | 'speed' | 'share',
     value: string | number,
     extra?: { subValue?: string; progress?: number; seekDelta?: number; autoHideMs?: number }
   ) => {
@@ -519,6 +528,27 @@ export const SeriesDetail: React.FC = () => {
       triggerHUD('aspect', label);
       return next;
     });
+  };
+
+  const handleShareVideo = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    haptic(40);
+    startControlsHideTimer();
+    const epTitle = currentPlayingEpisode?.title ? ` - ${currentPlayingEpisode.title}` : '';
+    const shareTitle = `${currentSeries?.title || 'StreamX Video'}${epTitle}`;
+    const shareText = `Watch ${shareTitle} on StreamX Neon Cinema!`;
+    const shareUrl = window.location.href;
+
+    if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare && navigator.canShare({ title: shareTitle, text: shareText, url: shareUrl })) {
+      try {
+        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+      } catch (_) {}
+    } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        triggerHUD('share', 'Link Copied');
+      } catch (_) {}
+    }
   };
 
   const handleSeek = (seconds: number) => {
@@ -1195,6 +1225,17 @@ export const SeriesDetail: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  {/* Share Video Button */}
+                  <button
+                    type="button"
+                    onClick={handleShareVideo}
+                    className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95 border border-white/15 transition shadow"
+                    title="Share Video"
+                    aria-label="Share Video"
+                  >
+                    <Share2 className="w-4 h-4 text-cyan-300" />
+                  </button>
+
                   {/* Playback Speed Toggle */}
                   <button
                     type="button"
@@ -1213,79 +1254,70 @@ export const SeriesDetail: React.FC = () => {
                     className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95 text-xs font-bold border border-white/15 transition shadow"
                     title="Toggle Aspect Ratio (Fit / Stretch / Crop)"
                   >
-                    <Scaling className="w-3.5 h-3.5 text-rose-400" />
+                    <Scaling className="w-3.5 h-3.5 text-cyan-400" />
                     <span className="capitalize text-[11px] font-bold">
                       {aspectRatioMode === 'fit' ? 'Fit' : aspectRatioMode === 'stretch' ? 'Stretch' : 'Crop'}
                     </span>
                   </button>
 
-                  <span className="px-2 py-0.5 rounded bg-rose-600 font-bold text-[10px] uppercase tracking-wider text-white">
+                  <span className="px-2 py-0.5 rounded bg-black/80 border border-cyan-400/60 shadow-[0_0_8px_rgba(0,243,255,0.4)] font-bold text-[10px] uppercase tracking-wider text-cyan-300">
                     S{activeSeason.seasonNumber}:E{currentPlayingEpisode.episodeNumber}
                   </span>
 
                   <button
                     type="button"
                     onClick={toggleMute}
-                    className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95"
+                    className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-white/20 active:scale-95 border border-white/15"
                     title={isMuted ? 'Unmute' : 'Mute'}
                   >
-                    {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
+                    {isMuted ? <VolumeX className="w-4 h-4 text-fuchsia-400" /> : <Volume2 className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              {/* Center Play/Pause, Rewind, Forward, & Next Episode Buttons */}
-              <div className="flex items-center justify-center gap-6 sm:gap-8 my-auto pointer-events-none">
+              {/* Center Play/Pause, Rewind, & Forward Buttons (Crisp White Structure & Smaller Sizing, No Next Button here) */}
+              <div className="flex items-center justify-center gap-4 sm:gap-6 my-auto pointer-events-none">
+                {/* 10s Rewind (Small & Crisp White) */}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleSeek(-10);
                   }}
-                  className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10 pointer-events-auto"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/70 backdrop-blur-md text-white active:scale-90 transition-all shadow-[0_0_10px_rgba(255,255,255,0.35)] border-2 border-white hover:bg-white/20 flex flex-col items-center justify-center pointer-events-auto cursor-pointer"
                   title="Rewind 10s"
                 >
-                  <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" />
-                  <span className="text-[9px] font-mono mt-0.5 font-bold">10s</span>
+                  <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
+                  <span className="text-[7px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
                 </button>
 
+                {/* Play/Pause (Compact & Crisp White) */}
                 <button
                   type="button"
                   onClick={handlePlayPause}
-                  className="p-4 sm:p-5 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-2xl shadow-rose-600/60 active:scale-90 transition-all border border-rose-400/30 pointer-events-auto"
+                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/80 backdrop-blur-md text-white shadow-[0_0_16px_rgba(255,255,255,0.5)] active:scale-90 hover:scale-105 transition-all border-2 border-white flex items-center justify-center pointer-events-auto cursor-pointer"
                   title={isVideoPaused ? 'Play' : 'Pause'}
                 >
                   {isVideoPaused ? (
-                    <Play className="w-8 h-8 sm:w-9 sm:h-9 fill-current ml-0.5" />
+                    <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white ml-0.5 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
                   ) : (
-                    <Pause className="w-8 h-8 sm:w-9 sm:h-9 fill-current" />
+                    <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
                   )}
                 </button>
 
+                {/* 10s Forward (Small & Crisp White) */}
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleSeek(10);
                   }}
-                  className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10 pointer-events-auto"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/70 backdrop-blur-md text-white active:scale-90 transition-all shadow-[0_0_10px_rgba(255,255,255,0.35)] border-2 border-white hover:bg-white/20 flex flex-col items-center justify-center pointer-events-auto cursor-pointer"
                   title="Forward 10s"
                 >
-                  <RotateCw className="w-5 h-5 sm:w-6 sm:h-6" />
-                  <span className="text-[9px] font-mono mt-0.5 font-bold">10s</span>
+                  <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
+                  <span className="text-[7px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
                 </button>
-
-                {activeSeason.episodes.findIndex((e) => e.id === currentPlayingEpisode.id) < activeSeason.episodes.length - 1 && (
-                  <button
-                    type="button"
-                    onClick={playNextEpisode}
-                    className="flex flex-col items-center justify-center p-3 rounded-full bg-black/60 hover:bg-white/20 text-white active:scale-90 transition-transform shadow-lg border border-white/10 pointer-events-auto"
-                    title="Next Episode"
-                  >
-                    <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 text-rose-400" />
-                    <span className="text-[9px] font-mono mt-0.5 text-rose-300 font-bold">Next</span>
-                  </button>
-                )}
               </div>
 
               {/* Bottom Progress Bar, Times, and Fullscreen */}
@@ -1309,16 +1341,18 @@ export const SeriesDetail: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <span className="text-white font-bold">{formatSeconds(currentTime)}</span>
                     <span className="text-slate-500">/</span>
-                    <span>{formatSeconds(duration || currentPlayingEpisode.durationSeconds)}</span>
+                    <span>{duration > 0 ? formatSeconds(duration) : (currentTime > 0 ? formatSeconds(currentTime) : '--:--')}</span>
 
+                    {/* Next Episode Button only at bottom ('niche jo rahne do bus') */}
                     {activeSeason.episodes.findIndex((e) => e.id === currentPlayingEpisode.id) < activeSeason.episodes.length - 1 && (
                       <button
                         type="button"
                         onClick={playNextEpisode}
-                        className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600/70 hover:bg-rose-600 text-white text-[10px] font-sans font-bold transition active:scale-95 ml-2"
+                        className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-400/50 text-cyan-300 text-[10px] font-sans font-bold transition active:scale-95 ml-2 shadow-[0_0_8px_rgba(0,243,255,0.3)] cursor-pointer"
+                        title="Next Episode"
                       >
                         <span>Next Ep</span>
-                        <SkipForward className="w-3 h-3" />
+                        <SkipForward className="w-3 h-3 stroke-[2.2]" />
                       </button>
                     )}
                   </div>
@@ -1338,14 +1372,15 @@ export const SeriesDetail: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* Default Top Series Poster Hero with Instant AutoPlay CTA */
-          <div className="relative w-full h-72 sm:h-80 md:h-96 overflow-hidden bg-slate-950">
-            <img
+          /* Default Top Series Poster Hero with SkeletonImage & AutoPlay CTA */
+          <div className="relative w-full h-72 sm:h-80 md:h-96 overflow-hidden bg-black">
+            <SkeletonImage
               src={currentSeries.bannerUrl || currentSeries.thumbnailUrl}
               alt={currentSeries.title}
-              className="w-full h-full object-cover object-center"
+              containerClassName="w-full h-full"
+              imageClassName="w-full h-full object-cover object-center"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#090a0f] via-[#090a0f]/50 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-transparent to-transparent pointer-events-none" />
 
             {/* Back Button */}
@@ -1355,21 +1390,21 @@ export const SeriesDetail: React.FC = () => {
                 haptic(40);
                 setSelectedSeriesId(null);
               }}
-              className="absolute top-4 left-4 z-20 p-2.5 rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-black/80 active:scale-95 transition-all border border-white/10"
+              className="absolute top-4 left-4 z-20 p-2.5 rounded-full bg-black/70 backdrop-blur-md text-white hover:bg-slate-900 active:scale-95 transition-all border border-cyan-500/30 shadow-[0_0_12px_rgba(0,243,255,0.2)]"
               aria-label="Back to series list"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-5 h-5 text-cyan-300" />
             </button>
 
             {/* Poster Hero Info & AutoPlay CTA */}
             <div className="absolute bottom-4 left-4 right-4 flex flex-col justify-end">
               <div className="flex items-center gap-2 mb-2">
-                <span className="px-2 py-0.5 rounded-md bg-rose-600 font-black text-[10px] uppercase tracking-wider text-white">
+                <span className="px-2.5 py-0.5 rounded-lg bg-black/80 backdrop-blur-md font-black text-[10px] uppercase tracking-wider text-cyan-300 border border-cyan-400/50 shadow-[0_0_10px_rgba(0,243,255,0.4)]">
                   {currentSeries.category}
                 </span>
                 {currentSeries.rating && (
-                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold">
-                    <Star className="w-3 h-3 fill-current" />
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/80 backdrop-blur-md text-amber-300 border border-amber-400/40 text-xs font-bold shadow-[0_0_8px_rgba(245,158,11,0.3)]">
+                    <Star className="w-3 h-3 fill-amber-300" />
                     {currentSeries.rating}
                   </span>
                 )}
@@ -1388,7 +1423,7 @@ export const SeriesDetail: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handlePlayEpisode(firstOrResumeEpisode)}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm shadow-xl shadow-rose-600/40 active:scale-[0.98] transition-all"
+                    className="flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 via-sky-500 to-fuchsia-600 hover:from-cyan-400 hover:to-fuchsia-500 text-white font-extrabold text-sm shadow-[0_0_20px_rgba(0,243,255,0.6)] border border-cyan-300 active:scale-[0.98] transition-all cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-current" />
                     <span>
@@ -1462,11 +1497,11 @@ export const SeriesDetail: React.FC = () => {
         {/* 1. SCROLLABLE TABS FOR SEASONS (Series-wise grouping) */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Film className="w-3.5 h-3.5 text-rose-500" />
+            <h3 className="font-extrabold text-xs text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Film className="w-3.5 h-3.5 text-cyan-400" />
               <span>Select Season</span>
             </h3>
-            <span className="text-[11px] text-slate-400 font-mono">
+            <span className="text-[11px] text-cyan-400 font-mono">
               {currentSeries.seasons.length} {currentSeries.seasons.length > 1 ? 'Seasons' : 'Season'}
             </span>
           </div>
@@ -1482,10 +1517,10 @@ export const SeriesDetail: React.FC = () => {
                     haptic(35);
                     setActiveSeasonNum(season.seasonNumber);
                   }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 active:scale-95 ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all duration-200 active:scale-95 cursor-pointer ${
                     isSelected
-                      ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30 ring-2 ring-rose-500/50'
-                      : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
+                      ? 'bg-gradient-to-r from-cyan-500 via-sky-500 to-fuchsia-600 text-white shadow-[0_0_15px_rgba(0,243,255,0.6)] border border-cyan-300'
+                      : 'bg-black text-slate-300 border border-slate-800 hover:border-cyan-500/40 hover:text-white'
                   }`}
                 >
                   Season {season.seasonNumber}
@@ -1495,13 +1530,13 @@ export const SeriesDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. COMPACT SMALL SQUARE BOX GRID ("E1", "E2"...) WITH AUTO-PLAY */}
+        {/* 2. COMPACT SMALL SQUARE BOX GRID ("E1", "E2"...) WITH AUTO-PLAY (Electric Neon Cyberpunk Style) */}
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-extrabold text-sm text-white tracking-tight flex items-center gap-2">
                 <span>Episodes: Season {activeSeason.seasonNumber}</span>
-                <span className="text-xs px-1.5 py-0.5 rounded bg-slate-800 text-rose-400 font-mono font-bold">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 font-mono font-bold border border-cyan-500/40">
                   {activeSeason.episodes.length}
                 </span>
               </h3>
@@ -1513,21 +1548,20 @@ export const SeriesDetail: React.FC = () => {
             {/* Compact Legend */}
             <div className="flex items-center gap-2.5 text-[10px] text-slate-400">
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded bg-rose-600 shadow-sm shadow-rose-500" />
-                <span>Playing</span>
+                <span className="w-2 h-2 rounded bg-cyan-400 shadow-[0_0_6px_#00f3ff]" />
+                <span className="text-cyan-300 font-semibold">Playing</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded bg-rose-950/80 border border-rose-500/60" />
-                <span>Watched</span>
+                <span className="w-2 h-2 rounded bg-fuchsia-950 border border-fuchsia-400" />
+                <span className="text-fuchsia-300">Watched</span>
               </div>
             </div>
           </div>
 
-          {/* Episode Section in ONLY ONE ROW (Horizontal Scrollable Strip) */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth">
+          {/* Episode Section in ONLY ONE ROW (Horizontal Scrollable Strip with Neon Glow) */}
+          <div className="flex items-center gap-2.5 overflow-x-auto pb-2 no-scrollbar scroll-smooth">
             {activeSeason.episodes.map((ep) => {
               const watched = isEpisodeWatched(ep.episodeNumber, activeSeason.seasonNumber);
-              const downloaded = isEpisodeDownloaded(ep.episodeNumber, activeSeason.seasonNumber);
               const isCurrentlyPlaying =
                 isPlayingInline &&
                 currentPlayingEpisode?.id === ep.id;
@@ -1537,32 +1571,29 @@ export const SeriesDetail: React.FC = () => {
                   key={ep.id}
                   type="button"
                   onClick={() => handlePlayEpisode(ep, activeSeason.seasonNumber)}
-                  className={`group relative shrink-0 min-w-[62px] h-14 px-3 rounded-xl flex flex-col items-center justify-center transition-all duration-150 border active:scale-95 select-none ${
+                  className={`group relative shrink-0 min-w-[52px] sm:min-w-[56px] h-12 sm:h-13 px-3 rounded-xl flex items-center justify-center transition-all duration-150 border active:scale-95 select-none cursor-pointer ${
                     isCurrentlyPlaying
-                      ? 'bg-rose-600 border-white text-white font-black shadow-lg shadow-rose-600/50 ring-2 ring-rose-500/50 scale-105 z-10'
+                      ? 'bg-gradient-to-tr from-cyan-500 via-sky-500 to-fuchsia-600 border-2 border-cyan-300 text-white font-black shadow-[0_0_20px_rgba(0,243,255,0.7)] ring-2 ring-cyan-400/50 scale-105 z-10'
                       : watched
-                      ? 'bg-rose-950/70 border-rose-500/50 text-rose-200'
-                      : 'bg-slate-900/90 border-slate-800/90 text-slate-200 hover:border-slate-700 hover:bg-slate-800'
+                      ? 'bg-black/90 border border-fuchsia-500/60 text-fuchsia-200 shadow-[0_0_8px_rgba(255,0,127,0.25)]'
+                      : 'bg-black/90 border border-slate-800 text-slate-200 hover:border-cyan-500/50 hover:text-white shadow-sm'
                   }`}
                   title={`Play Episode ${ep.episodeNumber}: ${ep.title}`}
                 >
-                  <span className="font-black text-xs tracking-tight">
+                  <span className="font-black text-sm tracking-tight">
                     E{ep.episodeNumber}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono font-medium truncate max-w-[50px]">
-                    {ep.duration || '45m'}
                   </span>
 
                   {/* Watched Small Tick Badge */}
                   {!isCurrentlyPlaying && watched && (
                     <div className="absolute top-1 right-1">
-                      <CheckCircle2 className="w-2.5 h-2.5 text-rose-400" />
+                      <CheckCircle2 className="w-2.5 h-2.5 text-fuchsia-400" />
                     </div>
                   )}
 
-                  {/* Playing mini icon */}
+                  {/* Playing mini animated indicator */}
                   {isCurrentlyPlaying && (
-                    <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-cyan-400 animate-ping shadow-[0_0_8px_#00f3ff]" />
+                    <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-white animate-ping shadow-[0_0_8px_#ffffff]" />
                   )}
                 </button>
               );
@@ -1570,17 +1601,13 @@ export const SeriesDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* 3. SELECTED / CURRENT EPISODE DETAILS & ACTIONS */}
+        {/* 3. SELECTED / CURRENT EPISODE DETAILS & ACTIONS (Electric Neon Card) */}
         {activeEpisodeForDetails && (
-          <div className="p-3.5 rounded-2xl bg-black/80 border border-cyan-500/20 shadow-[0_4px_20px_rgba(0,0,0,0.8)] space-y-2.5 animate-in fade-in">
+          <div className="p-4 rounded-2xl bg-black border border-cyan-500/35 shadow-[0_0_25px_rgba(0,243,255,0.12)] space-y-2.5 animate-in fade-in">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-bold text-xs border border-cyan-400/30">
+                <span className="px-2.5 py-0.5 rounded-lg bg-black border border-cyan-400/50 text-cyan-300 font-black text-xs shadow-[0_0_10px_rgba(0,243,255,0.4)]">
                   Episode {activeEpisodeForDetails.episodeNumber}
-                </span>
-                <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-cyan-400" />
-                  {activeEpisodeForDetails.duration}
                 </span>
               </div>
 
@@ -1590,7 +1617,7 @@ export const SeriesDetail: React.FC = () => {
                     <CheckCircle2 className="w-3 h-3 text-cyan-400" /> Watched
                   </span>
                 )}
-                <span className="text-[10px] font-bold text-fuchsia-400 bg-fuchsia-950/60 px-2 py-0.5 rounded border border-fuchsia-500/30">
+                <span className="text-[10px] font-bold text-fuchsia-400 bg-black px-2 py-0.5 rounded border border-fuchsia-500/40 shadow-[0_0_8px_rgba(255,0,127,0.3)]">
                   ULTRA HD
                 </span>
               </div>
@@ -1609,9 +1636,9 @@ export const SeriesDetail: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handlePlayEpisode(activeEpisodeForDetails, activeSeason.seasonNumber)}
-                className="w-full mt-1 py-2 px-3 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-98"
+                className="w-full mt-1.5 py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-fuchsia-600 hover:from-cyan-400 hover:to-fuchsia-500 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_0_18px_rgba(0,243,255,0.5)] border border-cyan-300 transition active:scale-98 cursor-pointer"
               >
-                <Play className="w-3.5 h-3.5 fill-current" />
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                 <span>Auto Play Episode {activeEpisodeForDetails.episodeNumber}</span>
               </button>
             )}

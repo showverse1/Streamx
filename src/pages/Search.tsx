@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Search as SearchIcon, X, Film, Play, Star, History, Clock, Trash2, ArrowUpRight } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Series } from '../types';
+import { SkeletonImage } from '../components/SkeletonImage';
 
 export const Search: React.FC = () => {
   const {
@@ -256,14 +257,14 @@ export const Search: React.FC = () => {
                 onClick={() => handleSelectSeries(item)}
                 className="group bg-black rounded-2xl overflow-hidden border border-cyan-500/25 hover:border-cyan-400/80 hover:shadow-[0_0_20px_rgba(0,243,255,0.3)] transition-all cursor-pointer active:scale-95 flex flex-col shadow-lg shadow-black"
               >
-                <div className="relative aspect-[3/4] bg-black">
-                  <img
+                <div className="relative aspect-[3/4] bg-black overflow-hidden">
+                  <SkeletonImage
                     src={item.thumbnailUrl}
                     alt={item.title}
-                    loading="lazy"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    containerClassName="w-full h-full"
+                    imageClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-transparent pointer-events-none" />
 
                   <div className="absolute top-2 left-2">
                     <span className="px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-md text-[9px] font-black text-cyan-300 uppercase border border-cyan-400/40 shadow-[0_0_8px_rgba(0,243,255,0.4)]">

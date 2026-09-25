@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Film, Play, Star, Sparkles, Clock, Compass } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Series } from '../types';
+import { SkeletonImage } from '../components/SkeletonImage';
 
 export const MoviesPage: React.FC = () => {
   const { series, openSeriesWithEpisode, setSelectedSeriesId, haptic } = useAppStore();
@@ -117,13 +118,13 @@ export const MoviesPage: React.FC = () => {
                   className="group relative flex flex-col bg-black rounded-2xl overflow-hidden border border-cyan-500/25 hover:border-cyan-400/80 hover:shadow-[0_0_25px_rgba(0,243,255,0.35)] transition-all duration-300 cursor-pointer active:scale-95 shadow-lg shadow-black/80"
                 >
                   <div className="relative aspect-[3/4] w-full overflow-hidden bg-black">
-                    <img
+                    <SkeletonImage
                       src={item.thumbnailUrl}
                       alt={item.title}
-                      loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      containerClassName="w-full h-full"
+                      imageClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none" />
 
                     <div className="absolute top-2 left-2">
                       <span className="px-2 py-0.5 rounded bg-black/85 backdrop-blur-md text-[9px] font-black text-cyan-300 uppercase border border-cyan-400/40 shadow-[0_0_8px_rgba(0,243,255,0.4)]">

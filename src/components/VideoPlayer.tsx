@@ -13,7 +13,8 @@ import {
   Minimize,
   SkipForward,
   Scaling,
-  HardDrive
+  HardDrive,
+  Share2
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { sanitizeVideoUrl } from '../services/videoUtils';
@@ -615,6 +616,34 @@ export const VideoPlayer: React.FC = () => {
               </span>
             </button>
 
+            {/* Share Button */}
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                haptic(40);
+                const title = activePlayback?.episode?.title || activePlayback?.series?.title || 'StreamX';
+                const shareData = {
+                  title,
+                  text: `Watch ${title} on StreamX`,
+                  url: window.location.href
+                };
+                if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+                  try {
+                    await navigator.share(shareData);
+                  } catch (_) {}
+                } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                  try {
+                    await navigator.clipboard.writeText(window.location.href);
+                  } catch (_) {}
+                }
+              }}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all active:scale-95"
+              title="Share Video"
+            >
+              <Share2 className="w-5 h-5 text-cyan-300" />
+            </button>
+
             {/* PiP Button */}
             <button
               type="button"
@@ -623,7 +652,7 @@ export const VideoPlayer: React.FC = () => {
                 togglePiP();
               }}
               className={`p-2 rounded-full backdrop-blur-md text-white transition-all active:scale-95 ${
-                isPiPActive ? 'bg-rose-600 text-white' : 'bg-white/10 hover:bg-white/20'
+                isPiPActive ? 'bg-cyan-500 text-white shadow-[0_0_10px_#00f3ff]' : 'bg-white/10 hover:bg-white/20'
               }`}
               title="Picture-in-Picture"
             >
@@ -645,22 +674,51 @@ export const VideoPlayer: React.FC = () => {
           </div>
         </div>
 
-        {/* CENTER PLAY/PAUSE BIG BUTTON (Clean, without unwanted next button) */}
-        <div className="flex items-center justify-center pointer-events-auto">
+        {/* CENTER CONTROLS (Crisp White Structure & Smaller Sizing, No Next Button near pause) */}
+        <div className="flex items-center justify-center gap-4 sm:gap-6 pointer-events-auto">
+          {/* Rewind 10s */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              seekRelative(-10);
+            }}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/70 backdrop-blur-md text-white active:scale-90 transition-all shadow-[0_0_10px_rgba(255,255,255,0.35)] border-2 border-white hover:bg-white/20 flex flex-col items-center justify-center cursor-pointer"
+            title="Rewind 10s"
+          >
+            <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
+            <span className="text-[7px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
+          </button>
+
+          {/* Center Play/Pause Compact with White Outline */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               togglePlayPause();
             }}
-            className="p-5 rounded-full bg-gradient-to-tr from-cyan-500 via-sky-500 to-fuchsia-500 text-white shadow-[0_0_25px_rgba(0,243,255,0.7)] border-2 border-cyan-300 active:scale-90 transition-all hover:scale-105 backdrop-blur-md"
+            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/80 backdrop-blur-md text-white shadow-[0_0_16px_rgba(255,255,255,0.5)] border-2 border-white active:scale-90 hover:scale-105 transition-all flex items-center justify-center cursor-pointer"
             title={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? (
-              <Pause className="w-9 h-9 fill-current drop-shadow-[0_0_8px_rgba(0,243,255,0.9)]" />
+              <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
             ) : (
-              <Play className="w-9 h-9 fill-current ml-1 drop-shadow-[0_0_8px_rgba(0,243,255,0.9)]" />
+              <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white ml-0.5 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
             )}
+          </button>
+
+          {/* Forward 10s */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              seekRelative(10);
+            }}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/70 backdrop-blur-md text-white active:scale-90 transition-all shadow-[0_0_10px_rgba(255,255,255,0.35)] border-2 border-white hover:bg-white/20 flex flex-col items-center justify-center cursor-pointer"
+            title="Forward 10s"
+          >
+            <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
+            <span className="text-[7px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
           </button>
         </div>
 
@@ -699,7 +757,7 @@ export const VideoPlayer: React.FC = () => {
             </div>
 
             <span className="text-xs font-mono text-cyan-300 w-12 font-semibold">
-              {formatTime(duration)}
+              {duration > 0 ? formatTime(duration) : (currentTime > 0 ? formatTime(currentTime) : '--:--')}
             </span>
           </div>
 

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { Play, Sparkles, Star, TrendingUp, Film, Clock, Flame } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Series } from '../types';
+import { SkeletonImage, SeriesCardSkeleton, CarouselCardSkeleton } from '../components/SkeletonImage';
 
 export const Home: React.FC = () => {
   const {
@@ -83,17 +84,32 @@ export const Home: React.FC = () => {
 
   if (isLoading && series.length === 0) {
     return (
-      <div className="p-4 space-y-6 animate-pulse">
-        <div className="flex gap-2 overflow-x-hidden">
+      <div className="p-4 space-y-6 bg-black min-h-screen">
+        {/* Category Pills Skeleton */}
+        <div className="flex gap-2 overflow-x-hidden pt-1">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-9 w-24 bg-slate-900 border border-cyan-500/20 rounded-full shrink-0" />
+            <div key={i} className="h-8 w-20 bg-slate-900 border border-cyan-500/20 rounded-full shrink-0 animate-pulse" />
           ))}
         </div>
-        <div className="h-60 bg-black border border-cyan-500/20 rounded-2xl w-full" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-52 bg-black border border-cyan-500/10 rounded-xl" />
-          ))}
+
+        {/* Carousel Skeleton */}
+        <div className="space-y-3 pt-2">
+          <div className="h-5 w-36 bg-slate-900 rounded-md animate-pulse" />
+          <div className="flex gap-3 overflow-x-hidden">
+            {[1, 2, 3].map((i) => (
+              <CarouselCardSkeleton key={i} />
+            ))}
+          </div>
+        </div>
+
+        {/* Grid Skeletons */}
+        <div className="space-y-3 pt-2">
+          <div className="h-5 w-28 bg-slate-900 rounded-md animate-pulse" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <SeriesCardSkeleton key={i} />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -199,12 +215,12 @@ export const Home: React.FC = () => {
                 onClick={() => handleSeriesClick(item)}
                 className="relative shrink-0 w-[82vw] sm:w-80 h-56 rounded-2xl overflow-hidden bg-black border border-cyan-500/30 hover:border-cyan-400/80 snap-start shadow-[0_0_25px_rgba(0,0,0,0.9)] hover:shadow-[0_0_25px_rgba(0,243,255,0.35)] cursor-pointer group active:scale-[0.98] transition-all duration-300"
               >
-                {/* Image & Gradient Backdrop */}
-                <img
+                {/* Image & Gradient Backdrop with SkeletonImage */}
+                <SkeletonImage
                   src={item.bannerUrl || item.thumbnailUrl}
                   alt={item.title}
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  containerClassName="w-full h-full"
+                  imageClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-transparent" />
 
@@ -289,15 +305,15 @@ export const Home: React.FC = () => {
                   onClick={() => handleSeriesClick(item)}
                   className="group relative flex flex-col bg-black rounded-2xl overflow-hidden border border-cyan-500/25 hover:border-cyan-400/80 hover:shadow-[0_0_25px_rgba(0,243,255,0.35)] transition-all duration-300 cursor-pointer active:scale-95 shadow-lg shadow-black/80"
                 >
-                  {/* Poster Thumbnail */}
+                  {/* Poster Thumbnail with SkeletonImage */}
                   <div className="relative aspect-[3/4] w-full overflow-hidden bg-black">
-                    <img
+                    <SkeletonImage
                       src={item.thumbnailUrl}
                       alt={item.title}
-                      loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      containerClassName="w-full h-full"
+                      imageClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none" />
 
                     {/* Top badges */}
                     <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">

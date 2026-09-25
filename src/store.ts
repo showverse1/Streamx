@@ -453,6 +453,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   clearWatchHistory: () => {
     get().haptic(50);
     storage.clearWatchHistory();
+    try {
+      localStorage.removeItem('streamx_watch_history');
+    } catch (_) {}
     set({ watchHistory: [] });
 
     const currentUser = get().user;
@@ -583,6 +586,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   clearRecentSearches: () => {
     get().haptic(40);
     storage.clearRecentSearches();
+    try {
+      localStorage.removeItem('streamx_recent_searches');
+    } catch (_) {}
     set({ recentSearches: [] });
   },
 
@@ -590,6 +596,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().haptic(70);
     storage.clearWatchHistory();
     storage.clearRecentSearches();
+    try {
+      localStorage.removeItem('streamx_watch_history');
+      localStorage.removeItem('streamx_recent_searches');
+    } catch (_) {}
     set({ watchHistory: [], recentSearches: [] });
 
     const currentUser = get().user;
