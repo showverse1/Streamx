@@ -28,7 +28,11 @@ import {
   Tv,
   Compass,
   Lock,
-  Unlock
+  Unlock,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Episode, Series, Season } from '../types';
@@ -908,11 +912,9 @@ export const SeriesDetail: React.FC = () => {
     if (side === 'right') {
       handleSeek(10);
       triggerRipple('right');
-      triggerHUD('seek-forward', '+10s', { autoHideMs: 1000 });
     } else {
       handleSeek(-10);
       triggerRipple('left');
-      triggerHUD('seek-backward', '-10s', { autoHideMs: 1000 });
     }
   };
 
@@ -1083,7 +1085,9 @@ export const SeriesDetail: React.FC = () => {
 
             {/* Split Screen Left & Right Interactive Hitbox Zones for Single/Double Tap */}
             <div
-              className="absolute inset-y-0 left-0 w-1/2 z-20 cursor-pointer select-none [-webkit-tap-highlight-color:transparent]"
+              className={`absolute inset-y-0 left-0 w-1/2 cursor-pointer select-none [-webkit-tap-highlight-color:transparent] ${
+                !showControls || isScreenLocked ? 'z-30' : 'z-20'
+              }`}
               onClick={(e) => {
                 e.stopPropagation();
                 handlePointerZoneClick('left', e.clientX, e.clientY);
@@ -1095,7 +1099,9 @@ export const SeriesDetail: React.FC = () => {
               aria-label="Rewind 10 seconds double tap"
             />
             <div
-              className="absolute inset-y-0 right-0 w-1/2 z-20 cursor-pointer select-none [-webkit-tap-highlight-color:transparent]"
+              className={`absolute inset-y-0 right-0 w-1/2 cursor-pointer select-none [-webkit-tap-highlight-color:transparent] ${
+                !showControls || isScreenLocked ? 'z-30' : 'z-20'
+              }`}
               onClick={(e) => {
                 e.stopPropagation();
                 handlePointerZoneClick('right', e.clientX, e.clientY);
@@ -1107,16 +1113,17 @@ export const SeriesDetail: React.FC = () => {
               aria-label="Forward 10 seconds double tap"
             />
 
-            {/* Network Buffering / Loading Spinning Circle */}
+            {/* Network Buffering / Loading Spinning Circle (Silent, sleek, no text, premium dual-ring glow) */}
             {isBuffering && !videoError && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] z-25 pointer-events-none transition-all">
-                <div className="relative flex items-center justify-center">
-                  <div className="w-14 h-14 rounded-full border-4 border-white/20 border-t-rose-500 animate-spin" />
-                  <div className="w-3 h-3 rounded-full bg-rose-500 absolute animate-ping" />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px] z-25 pointer-events-none transition-all">
+                <div className="relative flex items-center justify-center p-3 rounded-full bg-black/60 border border-white/20 shadow-[0_0_30px_rgba(0,0,0,0.8)]">
+                  {/* Outer glowing spinning ring */}
+                  <div className="w-12 h-12 rounded-full border-[3px] border-white/20 border-t-white border-r-white/80 animate-spin shadow-[0_0_20px_rgba(255,255,255,0.6)]" />
+                  {/* Inner neon reverse spinning ring */}
+                  <div className="w-7 h-7 rounded-full border-2 border-transparent border-t-cyan-400 border-b-cyan-300 animate-spin [animation-direction:reverse] [animation-duration:0.85s] absolute shadow-[0_0_12px_rgba(0,243,255,0.7)]" />
+                  {/* Center glowing core dot */}
+                  <div className="w-2 h-2 rounded-full bg-white absolute animate-pulse shadow-[0_0_8px_#ffffff]" />
                 </div>
-                <span className="mt-3.5 text-xs font-semibold text-white/90 tracking-wider font-mono drop-shadow">
-                  Buffering video...
-                </span>
               </div>
             )}
 
@@ -1159,33 +1166,25 @@ export const SeriesDetail: React.FC = () => {
               </div>
             )}
 
-            {/* Double Tap Left Side Feedback (-10s) - YouTube-style semi-circular ripple */}
+            {/* Double Tap Left Side Feedback (-10s) - Clean minimal 10s */}
             {ripple?.side === 'left' && (
               <div className="absolute inset-y-0 left-0 w-1/2 flex items-center justify-center pointer-events-none z-30 overflow-hidden">
-                <div className="absolute -left-1/4 w-[120%] h-[120%] rounded-r-full bg-white/10 backdrop-blur-[1px] animate-in fade-in zoom-in-75 duration-200" />
-                <div className="relative flex flex-col items-center justify-center text-white px-5 py-3 rounded-full bg-black/60 backdrop-blur-md shadow-2xl border border-white/15 animate-bounce">
-                  <div className="flex items-center gap-1.5">
-                    <Rewind className="w-5 h-5 text-rose-400 fill-rose-400 animate-pulse" />
-                    <RotateCcw className="w-6 h-6 text-rose-400" />
-                  </div>
-                  <span className="font-black text-sm tracking-wider mt-1 font-mono text-white drop-shadow-md">
-                    -10 SECONDS
+                <div className="absolute -left-1/4 w-[130%] h-[130%] rounded-r-[100%] bg-gradient-to-r from-white/15 via-white/5 to-transparent backdrop-blur-[1px] animate-in fade-in duration-150" />
+                <div className="relative px-3.5 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-white/30 text-white shadow-xl animate-in zoom-in-90 duration-150">
+                  <span className="font-black text-sm font-mono text-white tracking-wider">
+                    10s
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Double Tap Right Side Feedback (+10s) - YouTube-style semi-circular ripple */}
+            {/* Double Tap Right Side Feedback (+10s) - Clean minimal 10s */}
             {ripple?.side === 'right' && (
               <div className="absolute inset-y-0 right-0 w-1/2 flex items-center justify-center pointer-events-none z-30 overflow-hidden">
-                <div className="absolute -right-1/4 w-[120%] h-[120%] rounded-l-full bg-white/10 backdrop-blur-[1px] animate-in fade-in zoom-in-75 duration-200" />
-                <div className="relative flex flex-col items-center justify-center text-white px-5 py-3 rounded-full bg-black/60 backdrop-blur-md shadow-2xl border border-white/15 animate-bounce">
-                  <div className="flex items-center gap-1.5">
-                    <RotateCw className="w-6 h-6 text-rose-400" />
-                    <FastForward className="w-5 h-5 text-rose-400 fill-rose-400 animate-pulse" />
-                  </div>
-                  <span className="font-black text-sm tracking-wider mt-1 font-mono text-white drop-shadow-md">
-                    +10 SECONDS
+                <div className="absolute -right-1/4 w-[130%] h-[130%] rounded-l-[100%] bg-gradient-to-l from-white/15 via-white/5 to-transparent backdrop-blur-[1px] animate-in fade-in duration-150" />
+                <div className="relative px-3.5 py-1.5 rounded-full bg-black/75 backdrop-blur-md border border-white/30 text-white shadow-xl animate-in zoom-in-90 duration-150">
+                  <span className="font-black text-sm font-mono text-white tracking-wider">
+                    10s
                   </span>
                 </div>
               </div>
@@ -1413,56 +1412,62 @@ export const SeriesDetail: React.FC = () => {
                 </div>
               </div>
 
-              {/* Center Play/Pause, Rewind, & Forward Buttons with Visible Crisp White Structure */}
+              {/* Center Play/Pause, Rewind, Forward, & Next Buttons with Visible Crisp White Structure */}
               <div className="my-auto flex items-center justify-center pointer-events-none">
                 <div
-                  className={`flex items-center justify-center gap-2.5 sm:gap-3 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-white/15 hover:bg-white/20 backdrop-blur-xl border border-white/60 shadow-[0_4px_24px_rgba(255,255,255,0.2)] transition-all ${
-                    showControls && !isScreenLocked ? 'pointer-events-auto' : 'pointer-events-none'
+                  className={`flex items-center justify-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-full bg-black/55 backdrop-blur-xl border-2 border-white/80 shadow-[0_0_24px_rgba(255,255,255,0.3)] transition-all ${
+                    showControls && !isScreenLocked ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0 invisible select-none'
                   }`}
                 >
                   {/* 10s Rewind (Small with Crisp White Structure) */}
                   <button
                     type="button"
+                    disabled={!showControls || isScreenLocked}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleSeek(-10);
                     }}
-                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/10 hover:bg-white/25 active:scale-90 text-white border border-white/80 transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.25)]"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/20 hover:bg-white/35 active:scale-90 text-white border border-white transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.35)] disabled:pointer-events-none"
                     title="Rewind 10s"
                     aria-label="Rewind 10 seconds"
                   >
-                    <RotateCcw className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white stroke-[2.5]" />
-                    <span className="text-[5.5px] sm:text-[6px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
+                    <RotateCcw className="w-3 h-3 text-white stroke-[2.5]" />
+                    <span className="text-[5.5px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
                   </button>
 
-                  {/* Play/Pause (Small with High-Contrast Crisp White Background) */}
+                  {/* Play/Pause (Small with High-Contrast Crisp White Background & Solid White Border) */}
                   <button
                     type="button"
-                    onClick={handlePlayPause}
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white text-black hover:bg-white/95 active:scale-90 transition-all shadow-[0_0_16px_rgba(255,255,255,0.9)] border-2 border-white flex items-center justify-center cursor-pointer"
+                    disabled={!showControls || isScreenLocked}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePlayPause();
+                    }}
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white text-black hover:bg-slate-100 active:scale-90 transition-all shadow-[0_0_20px_rgba(255,255,255,0.95)] border-2 border-white flex items-center justify-center cursor-pointer disabled:pointer-events-none"
                     title={isVideoPaused ? 'Play' : 'Pause'}
                     aria-label={isVideoPaused ? 'Play' : 'Pause'}
                   >
                     {isVideoPaused ? (
-                      <Play className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-black text-black ml-0.5" />
+                      <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-black text-black ml-0.5" />
                     ) : (
-                      <Pause className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-black text-black" />
+                      <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-black text-black" />
                     )}
                   </button>
 
                   {/* 10s Forward (Small with Crisp White Structure) */}
                   <button
                     type="button"
+                    disabled={!showControls || isScreenLocked}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleSeek(10);
                     }}
-                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/10 hover:bg-white/25 active:scale-90 text-white border border-white/80 transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_8px_rgba(255,255,255,0.25)]"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/20 hover:bg-white/35 active:scale-90 text-white border border-white transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.35)] disabled:pointer-events-none"
                     title="Forward 10s"
                     aria-label="Forward 10 seconds"
                   >
-                    <RotateCw className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white stroke-[2.5]" />
-                    <span className="text-[5.5px] sm:text-[6px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
+                    <RotateCw className="w-3 h-3 text-white stroke-[2.5]" />
+                    <span className="text-[5.5px] font-mono leading-none mt-0.5 font-black text-white">10s</span>
                   </button>
                 </div>
               </div>
@@ -1498,12 +1503,13 @@ export const SeriesDetail: React.FC = () => {
                     {activeSeason.episodes.findIndex((e) => e.id === currentPlayingEpisode.id) < activeSeason.episodes.length - 1 && (
                       <button
                         type="button"
+                        disabled={!showControls || isScreenLocked}
                         onClick={playNextEpisode}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/70 text-white text-[9.5px] font-sans font-bold transition active:scale-95 ml-2 shadow-[0_0_8px_rgba(255,255,255,0.25)] backdrop-blur-md cursor-pointer"
+                        className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 hover:bg-white/35 border-2 border-white text-white text-[9.5px] font-sans font-black transition active:scale-95 ml-2 shadow-[0_0_10px_rgba(255,255,255,0.4)] backdrop-blur-md cursor-pointer disabled:pointer-events-none"
                         title="Next Episode"
                       >
                         <span>Next Ep</span>
-                        <SkipForward className="w-2.5 h-2.5 stroke-[2.5] text-white" />
+                        <SkipForward className="w-2.5 h-2.5 stroke-[2.5] text-white fill-white" />
                       </button>
                     )}
                   </div>

@@ -237,6 +237,57 @@ export const ContentManagerModal: React.FC = () => {
     setTimeout(() => setStatusMsg(null), 2500);
   };
 
+  const handleQuickAddEpisode = async (seriesId: string, seasonNum: number) => {
+    haptic(40);
+    const target = series.find((s) => s.id === seriesId);
+    if (!target) return;
+    const targetSeason = target.seasons.find((s) => s.seasonNumber === seasonNum);
+    const currentCount = targetSeason ? targetSeason.episodes.length : 0;
+    const nextNum = currentCount + 1;
+    const newEp: Episode = {
+      id: `ep-${Date.now()}-${nextNum}`,
+      episodeNumber: nextNum,
+      title: `Episode ${nextNum}`,
+      duration: '45:00',
+      durationSeconds: 2700,
+      videoUrl: '',
+      thumbnailUrl: target.thumbnailUrl || '',
+      description: ''
+    };
+    const updatedSeasons = target.seasons.map((s) => {
+      if (s.seasonNumber !== seasonNum) return s;
+      return {
+        ...s,
+        episodes: [...s.episodes, newEp]
+      };
+    });
+    const updated: Series = { ...target, seasons: updatedSeasons };
+    await updateSeries(updated);
+    setInlineEditingEp({
+      seriesId,
+      seasonNum,
+      epId: newEp.id,
+      title: newEp.title,
+      videoUrl: ''
+    });
+    setStatusMsg({ type: 'success', text: `Added Episode ${nextNum} to Season ${seasonNum}! You can enter its video URL now.` });
+    setTimeout(() => setStatusMsg(null), 3000);
+  };
+
+  const handleDuplicateSeries = async (target: Series) => {
+    haptic(40);
+    const newId = `series-${Date.now()}`;
+    const duplicated: Series = {
+      ...JSON.parse(JSON.stringify(target)),
+      id: newId,
+      title: `${target.title} (Copy)`,
+      uploadTimestamp: Date.now()
+    };
+    await addSeries(duplicated);
+    setStatusMsg({ type: 'success', text: `Duplicated "${target.title}" successfully!` });
+    setTimeout(() => setStatusMsg(null), 3000);
+  };
+
   const totalEpisodesCount = series.reduce((acc, s) => {
     return acc + s.seasons.reduce((sAcc, sea) => sAcc + sea.episodes.length, 0);
   }, 0);
@@ -1020,6 +1071,40 @@ export const ContentManagerModal: React.FC = () => {
                 </div>
               </div>
 
+              {/* Management Analytics Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-3 rounded-2xl bg-slate-950 border border-cyan-500/30 flex items-center justify-between shadow-[0_0_12px_rgba(0,243,255,0.15)]">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Titles</span>
+                    <span className="text-base font-black text-white font-mono">{series.length}</span>
+                  </div>
+                  <Film className="w-5 h-5 text-cyan-400 opacity-80" />
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-950 border border-fuchsia-500/30 flex items-center justify-between shadow-[0_0_12px_rgba(255,0,127,0.15)]">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Episodes</span>
+                    <span className="text-base font-black text-fuchsia-300 font-mono">{totalEpisodesCount}</span>
+                  </div>
+                  <Tv className="w-5 h-5 text-fuchsia-400 opacity-80" />
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-950 border border-amber-500/30 flex items-center justify-between shadow-[0_0_12px_rgba(245,158,11,0.15)]">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Trending</span>
+                    <span className="text-base font-black text-amber-300 font-mono">{series.filter((s) => s.tags?.includes('Trending')).length}</span>
+                  </div>
+                  <Flame className="w-5 h-5 text-amber-400 opacity-80" />
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-950 border border-emerald-500/30 flex items-center justify-between shadow-[0_0_12px_rgba(16,185,129,0.15)]">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Movies</span>
+                    <span className="text-base font-black text-emerald-300 font-mono">
+                      {series.filter((s) => s.category?.toLowerCase() === 'movie' || (s.seasons.length === 1 && s.seasons[0].episodes.length === 1)).length}
+                    </span>
+                  </div>
+                  <Layers className="w-5 h-5 text-emerald-400 opacity-80" />
+                </div>
+              </div>
+
               {/* Search & Filter Bar */}
               <div className="space-y-2">
                 <div className="relative">
@@ -1033,7 +1118,7 @@ export const ContentManagerModal: React.FC = () => {
                   />
                 </div>
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                  {['All', 'Movie', 'Anime', 'K-Drama', 'Action', 'Thriller', 'Romance'].map((cat) => (
+                  {['All', 'Trending Only', 'Movies Only', 'Web Series Only', 'Anime', 'K-Drama', 'Action', 'Thriller', 'Romance'].map((cat) => (
                     <button
                       key={cat}
                       type="button"
@@ -1067,9 +1152,19 @@ export const ContentManagerModal: React.FC = () => {
                         item.title.toLowerCase().includes(manageSearchQuery.toLowerCase()) ||
                         item.category.toLowerCase().includes(manageSearchQuery.toLowerCase()) ||
                         item.id.toLowerCase().includes(manageSearchQuery.toLowerCase());
-                      const matchesCategory =
-                        manageCategoryFilter === 'All' ||
-                        item.category.toLowerCase() === manageCategoryFilter.toLowerCase();
+                      const isMovie = item.category?.toLowerCase() === 'movie' || (item.seasons.length === 1 && item.seasons[0].episodes.length === 1);
+                      let matchesCategory = true;
+                      if (manageCategoryFilter === 'All') {
+                        matchesCategory = true;
+                      } else if (manageCategoryFilter === 'Trending Only') {
+                        matchesCategory = !!item.tags?.includes('Trending');
+                      } else if (manageCategoryFilter === 'Movies Only') {
+                        matchesCategory = isMovie;
+                      } else if (manageCategoryFilter === 'Web Series Only') {
+                        matchesCategory = !isMovie;
+                      } else {
+                        matchesCategory = item.category?.toLowerCase() === manageCategoryFilter.toLowerCase();
+                      }
                       return matchesSearch && matchesCategory;
                     })
                     .map((item) => {
@@ -1132,6 +1227,14 @@ export const ContentManagerModal: React.FC = () => {
                               </button>
                               <button
                                 type="button"
+                                onClick={() => handleDuplicateSeries(item)}
+                                className="p-2 rounded-xl bg-black hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-slate-400 hover:text-cyan-300 transition-colors"
+                                title="Duplicate Title"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleEditSeries(item)}
                                 className="p-2 rounded-xl bg-black hover:bg-cyan-950 border border-cyan-500/30 text-cyan-300 transition-colors"
                                 title="Edit in Form Builder"
@@ -1161,10 +1264,20 @@ export const ContentManagerModal: React.FC = () => {
                               </h5>
 
                               {item.seasons.map((season) => (
-                                <div key={season.seasonNumber} className="space-y-1.5">
-                                  <span className="text-[10px] font-bold text-slate-400 font-mono">
-                                    Season {season.seasonNumber} ({season.episodes.length} episodes)
-                                  </span>
+                                <div key={season.seasonNumber} className="space-y-1.5 p-2 rounded-xl bg-black/50 border border-slate-900">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-slate-400 font-mono">
+                                      Season {season.seasonNumber} ({season.episodes.length} episodes)
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickAddEpisode(item.id, season.seasonNumber)}
+                                      className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-400/40 text-cyan-300 text-[10px] font-bold transition active:scale-95"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      <span>Add Episode</span>
+                                    </button>
+                                  </div>
 
                                   <div className="space-y-1.5">
                                     {season.episodes.map((ep) => {

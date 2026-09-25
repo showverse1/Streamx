@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Home, Search, Film, User, AlertCircle, WifiOff, ChevronLeft, Sparkles, Zap } from 'lucide-react';
+import { Home, Search, Film, User, AlertCircle, WifiOff, ChevronLeft, Sparkles, Zap, Play } from 'lucide-react';
 import { App as CapApp } from '@capacitor/app';
 import { useAppStore } from '../store';
 import { TabType } from '../types';
@@ -248,7 +248,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Top Mobile Status Header - ONLY on Home screen */}
       {currentTab === 'home' && !selectedSeriesId && (
         <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 bg-black/90 backdrop-blur-2xl border-b border-cyan-500/25 safe-pt shadow-[0_4px_25px_rgba(0,0,0,0.9)] gpu-smooth">
-          {/* Futuristic Neon Logo & Badge */}
+          {/* Cinematic StreamX Brand Logo & Badge */}
           <div 
             onClick={() => {
               haptic(40);
@@ -256,27 +256,26 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             }}
             className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition-transform"
           >
-            {/* Cyber Neon X Badge */}
-            <div className="relative w-8 h-8 rounded-xl bg-black flex items-center justify-center font-black text-white text-base shadow-[0_0_16px_rgba(0,243,255,0.7)] border border-cyan-400/60 overflow-hidden">
-              <span className="bg-gradient-to-br from-cyan-400 via-sky-300 to-fuchsia-500 bg-clip-text text-transparent font-black text-base drop-shadow-[0_0_8px_rgba(0,243,255,0.8)]">
-                X
-              </span>
-              <span className="absolute inset-0 bg-gradient-to-tr from-cyan-500/20 to-transparent pointer-events-none" />
+            {/* Cinema Play Squircle Badge */}
+            <div className="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-600 via-rose-500 to-amber-500 p-[1.5px] shadow-[0_0_15px_rgba(244,63,94,0.4)]">
+              <div className="w-full h-full rounded-[10px] bg-black flex items-center justify-center">
+                <Play className="w-3.5 h-3.5 fill-rose-500 text-rose-500 ml-0.5 drop-shadow-[0_0_6px_#f43f5e]" />
+              </div>
             </div>
 
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-lg tracking-tight bg-gradient-to-r from-white via-cyan-100 to-cyan-400 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(0,243,255,0.5)]">
-                  StreamX
+                <span className="font-black text-lg tracking-tight text-white drop-shadow">
+                  Stream<span className="text-rose-500">X</span>
                 </span>
-                <span className="px-1.5 py-0.2 rounded bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white font-mono text-[9px] font-black tracking-widest uppercase shadow-[0_0_8px_rgba(0,243,255,0.6)]">
-                  ULTRA
+                <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 font-mono text-[9px] font-black tracking-widest uppercase border border-rose-500/30">
+                  HD
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f3ff] animate-ping" />
-                <span className="text-[10px] text-cyan-300 font-mono tracking-wider font-semibold">
-                  NEON CINEMA • 4K
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e] animate-ping" />
+                <span className="text-[10px] text-slate-400 font-mono tracking-wider font-semibold">
+                  CINEMA • 4K
                 </span>
               </div>
             </div>
