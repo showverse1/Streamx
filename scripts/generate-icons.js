@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+import sharp from 'sharp';
+import fs from 'fs';
+import path from 'path';
+
+// StreamX High-Contrast Electric Neon Cyberpunk SVG (Matches in-app StreamX branding)
+const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <!-- Deep jet black gradient background -->
     <radialGradient id="neonBg" cx="50%" cy="50%" r="70%">
@@ -68,4 +73,44 @@
   <circle cx="442" cy="70" r="5" fill="#ff007f" />
   <circle cx="70" cy="442" r="5" fill="#ff007f" />
   <circle cx="442" cy="442" r="5" fill="#00f3ff" />
-</svg>
+</svg>`;
+
+async function generateAllIcons() {
+  const svgBuffer = Buffer.from(svgContent);
+
+  // 1. Write public/icon.svg
+  fs.writeFileSync('public/icon.svg', svgContent);
+  console.log('Generated public/icon.svg');
+
+  // 2. Generate PWA web icons
+  await sharp(svgBuffer).resize(192, 192).png().toFile('public/pwa-192x192.png');
+  await sharp(svgBuffer).resize(512, 512).png().toFile('public/pwa-512x512.png');
+  await sharp(svgBuffer).resize(512, 512).png().toFile('public/pwa-maskable-512x512.png');
+  await sharp(svgBuffer).resize(180, 180).png().toFile('public/apple-touch-icon.png');
+  console.log('Generated public PWA PNGs');
+
+  // 3. Generate Android Mipmap APK launcher icons
+  const mipmapDirs = [
+    { dir: 'android/app/src/main/res/mipmap-mdpi', size: 48 },
+    { dir: 'android/app/src/main/res/mipmap-hdpi', size: 72 },
+    { dir: 'android/app/src/main/res/mipmap-xhdpi', size: 96 },
+    { dir: 'android/app/src/main/res/mipmap-xxhdpi', size: 144 },
+    { dir: 'android/app/src/main/res/mipmap-xxxhdpi', size: 192 }
+  ];
+
+  for (const { dir, size } of mipmapDirs) {
+    if (fs.existsSync(dir)) {
+      // standard icon
+      await sharp(svgBuffer).resize(size, size).png().toFile(path.join(dir, 'ic_launcher.png'));
+      // round icon
+      await sharp(svgBuffer).resize(size, size).png().toFile(path.join(dir, 'ic_launcher_round.png'));
+      // foreground icon
+      await sharp(svgBuffer).resize(size, size).png().toFile(path.join(dir, 'ic_launcher_foreground.png'));
+      console.log(`Generated APK icons for ${dir} (${size}x${size})`);
+    }
+  }
+
+  console.log('All PWA and APK icons successfully updated to neon StreamX brand!');
+}
+
+generateAllIcons().catch(console.error);

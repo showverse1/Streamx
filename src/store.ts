@@ -325,21 +325,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await fetchSeriesData();
-      const sanitizedData = data.map((item) => ({
-        ...item,
-        seasons: (item.seasons || []).map((s) => ({
-          ...s,
-          episodes: (s.episodes || []).map((ep) => ({
-            ...ep,
-            videoUrl: sanitizeVideoUrl(ep.videoUrl)
+      if (data && data.length > 0) {
+        const sanitizedData = data.map((item) => ({
+          ...item,
+          seasons: (item.seasons || []).map((s) => ({
+            ...s,
+            episodes: (s.episodes || []).map((ep) => ({
+              ...ep,
+              videoUrl: sanitizeVideoUrl(ep.videoUrl)
+            }))
           }))
-        }))
-      }));
-      storage.saveCachedSeries(sanitizedData);
-      set({ series: sanitizedData, isLoading: false });
+        }));
+        storage.saveCachedSeries(sanitizedData);
+        set({ series: sanitizedData, isLoading: false });
+      } else {
+        // Retain local cached series if network returned empty
+        const cached = storage.getCachedSeries();
+        set({ series: cached, isLoading: false });
+      }
     } catch (err: unknown) {
+      console.warn('Series fetch warning, using offline cache:', err);
+      const cached = storage.getCachedSeries();
       set({
-        error: err instanceof Error ? err.message : 'Failed to fetch series catalog',
+        series: cached,
+        error: null,
         isLoading: false
       });
     }
@@ -349,7 +358,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setIsContentManagerOpen: (open: boolean) => {
     if (open) {
       const email = get().user?.email?.toLowerCase().trim();
-      if (email !== 'vk8260428@gmail.com') {
+      const adminEmails = ['vk8260428@gmail.com', 'verseshow94@gmail.com'];
+      if (!email || !adminEmails.includes(email)) {
         return;
       }
     }

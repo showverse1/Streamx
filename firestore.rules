@@ -36,5 +36,12 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
+
+    // Episode Discussions & Comments (Public read, open create and like updates)
+    match /episodeComments/{commentId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if true;
+    }
   }
 }

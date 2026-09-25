@@ -71,3 +71,17 @@ export interface UserProfile {
 }
 
 export type TabType = 'home' | 'movies' | 'search' | 'downloads' | 'me';
+
+export interface EpisodeComment {
+  id: string;
+  seriesId: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  userId?: string;
+  userName: string;
+  userAvatar?: string;
+  text: string;
+  timestamp: number;
+  likes: number;
+  likedBy?: string[];
+}

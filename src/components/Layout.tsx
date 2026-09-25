@@ -5,6 +5,7 @@ import { useAppStore } from '../store';
 import { TabType } from '../types';
 import { OfflineToast } from './OfflineToast';
 import { PWAInstallButton } from './PWAInstallButton';
+import { RefreshRateBadge } from './RefreshRateBadge';
 import { useOnlineStatus } from './useOnlineStatus';
 import { MiniPlayer } from './MiniPlayer';
 
@@ -282,7 +283,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           {/* Quick Header Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <RefreshRateBadge />
+
             <button
               type="button"
               onClick={() => {

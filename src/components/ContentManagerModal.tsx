@@ -17,7 +17,12 @@ import {
   HelpCircle,
   FileCode,
   Sparkles,
-  Edit3
+  Edit3,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  Save,
+  Flame
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Series, Season, Episode } from '../types';
@@ -147,9 +152,68 @@ export const ContentManagerModal: React.FC = () => {
     }
   ]);
 
-  // Strictly only show if open and user is vk8260428@gmail.com
-  const isAdmin = user?.email?.toLowerCase().trim() === 'vk8260428@gmail.com';
+  // Strictly only show if open and user is admin
+  const ADMIN_EMAILS = ['vk8260428@gmail.com', 'verseshow94@gmail.com'];
+  const isAdmin = user?.email ? ADMIN_EMAILS.includes(user?.email?.toLowerCase().trim()) : false;
+
+  // Extra management features state
+  const [manageSearchQuery, setManageSearchQuery] = useState('');
+  const [manageCategoryFilter, setManageCategoryFilter] = useState('All');
+  const [expandedSeriesId, setExpandedSeriesId] = useState<string | null>(null);
+  const [inlineEditingEp, setInlineEditingEp] = useState<{ seriesId: string; seasonNum: number; epId: string; title: string; videoUrl: string } | null>(null);
+
   if (!isContentManagerOpen || !isAdmin) return null;
+
+  const handleAddMultipleEpisodes = (sIdx: number, count: number) => {
+    haptic(40);
+    const updated = [...formSeasons];
+    const currentCount = updated[sIdx].episodes.length;
+    for (let i = 1; i <= count; i++) {
+      const nextNum = currentCount + i;
+      updated[sIdx].episodes.push({
+        id: `ep-${Date.now()}-${nextNum}`,
+        episodeNumber: nextNum,
+        title: `Episode ${nextNum}`,
+        duration: '45:00',
+        durationSeconds: 2700,
+        videoUrl: '',
+        thumbnailUrl: '',
+        description: ''
+      });
+    }
+    setFormSeasons(updated);
+  };
+
+  const handleQuickUpdateEpisode = async (seriesId: string, seasonNum: number, episodeId: string, newTitle: string, newVideoUrl: string) => {
+    haptic(40);
+    const targetSeries = series.find((s) => s.id === seriesId);
+    if (!targetSeries) return;
+
+    const updatedSeasons = targetSeries.seasons.map((s) => {
+      if (s.seasonNumber !== seasonNum) return s;
+      return {
+        ...s,
+        episodes: s.episodes.map((ep) => {
+          if (ep.id !== episodeId) return ep;
+          return {
+            ...ep,
+            title: newTitle.trim() || ep.title,
+            videoUrl: sanitizeVideoUrl(newVideoUrl)
+          };
+        })
+      };
+    });
+
+    const updatedSeries: Series = {
+      ...targetSeries,
+      seasons: updatedSeasons
+    };
+
+    await updateSeries(updatedSeries);
+    setInlineEditingEp(null);
+    setStatusMsg({ type: 'success', text: `Updated Episode in "${targetSeries.title}"!` });
+    setTimeout(() => setStatusMsg(null), 3000);
+  };
 
   const handleCopyTemplate = () => {
     haptic(30);
@@ -368,65 +432,68 @@ export const ContentManagerModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl p-3 sm:p-5 animate-in fade-in duration-200"
       onClick={() => setIsContentManagerOpen(false)}
     >
       <div
-        className="w-full max-w-4xl max-h-[92vh] rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col overflow-hidden text-slate-100"
+        className="w-full max-w-4xl max-h-[92vh] rounded-3xl bg-black border border-cyan-500/40 shadow-[0_0_40px_rgba(0,243,255,0.25)] flex flex-col overflow-hidden text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/70">
+        {/* Header (Cyber Neon Studio) */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-cyan-500/30 bg-black/90 backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-600 to-amber-600 flex items-center justify-center shadow-lg shadow-rose-600/20">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500 to-fuchsia-600 flex items-center justify-center shadow-[0_0_15px_rgba(0,243,255,0.5)] border border-cyan-300">
               <Film className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                Content Manager <span className="text-xs font-normal text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">Cloud Admin</span>
+              <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                <span>Creator Studio</span>
+                <span className="text-[10px] font-mono font-bold text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded-full border border-cyan-500/40 shadow-[0_0_8px_rgba(0,243,255,0.3)]">
+                  Cloud Admin
+                </span>
               </h2>
-              <p className="text-[11px] text-slate-400">Add & manage movies, web series, seasons, episodes & video URLs</p>
+              <p className="text-[11px] text-slate-400">StreamX Neon Content Hub • Direct HLS & MP4 Streaming</p>
             </div>
           </div>
           <button
             onClick={() => setIsContentManagerOpen(false)}
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+            className="p-2 rounded-xl bg-black border border-cyan-500/30 hover:border-cyan-400 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer shadow-[0_0_10px_rgba(0,243,255,0.2)]"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center px-6 pt-3 border-b border-slate-800/80 gap-2 overflow-x-auto scrollbar-none bg-slate-900/60">
+        <div className="flex items-center px-6 pt-3 border-b border-cyan-500/25 gap-2 overflow-x-auto scrollbar-none bg-black/80">
           <button
             onClick={() => { haptic(25); setActiveTab('bulk'); }}
-            className={`pb-3 px-3 text-xs font-bold transition-all flex items-center gap-2 border-b-2 whitespace-nowrap ${
+            className={`pb-3 px-3 text-xs font-bold transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'bulk'
-                ? 'border-rose-500 text-rose-400'
+                ? 'border-cyan-400 text-cyan-300 shadow-[0_4px_12px_rgba(0,243,255,0.4)]'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <FileCode className="w-4 h-4" />
-            <span>Bulk JSON Import (एक साथ डालें)</span>
+            <span>Bulk JSON Import</span>
           </button>
 
           <button
             onClick={() => { haptic(25); setActiveTab('form'); }}
-            className={`pb-3 px-3 text-xs font-bold transition-all flex items-center gap-2 border-b-2 whitespace-nowrap ${
+            className={`pb-3 px-3 text-xs font-bold transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'form'
-                ? 'border-rose-500 text-rose-400'
+                ? 'border-cyan-400 text-cyan-300 shadow-[0_4px_12px_rgba(0,243,255,0.4)]'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Plus className="w-4 h-4" />
-            <span>Visual Form (नया टाइटल)</span>
+            <span>Visual Form Builder</span>
           </button>
 
           <button
             onClick={() => { haptic(25); setActiveTab('manage'); }}
-            className={`pb-3 px-3 text-xs font-bold transition-all flex items-center gap-2 border-b-2 whitespace-nowrap ${
+            className={`pb-3 px-3 text-xs font-bold transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'manage'
-                ? 'border-rose-500 text-rose-400'
+                ? 'border-cyan-400 text-cyan-300 shadow-[0_4px_12px_rgba(0,243,255,0.4)]'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -436,14 +503,14 @@ export const ContentManagerModal: React.FC = () => {
 
           <button
             onClick={() => { haptic(25); setActiveTab('guide'); }}
-            className={`pb-3 px-3 text-xs font-bold transition-all flex items-center gap-2 border-b-2 whitespace-nowrap ${
+            className={`pb-3 px-3 text-xs font-bold transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'guide'
-                ? 'border-rose-500 text-rose-400'
+                ? 'border-cyan-400 text-cyan-300 shadow-[0_4px_12px_rgba(0,243,255,0.4)]'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <HelpCircle className="w-4 h-4" />
-            <span>Hosting & Video Guide</span>
+            <span>Streaming Guide</span>
           </button>
         </div>
 
@@ -737,14 +804,25 @@ export const ContentManagerModal: React.FC = () => {
                           className="bg-transparent font-bold text-xs text-white border-b border-dashed border-slate-700 focus:outline-none focus:border-rose-500 pb-0.5"
                         />
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAddEpisode(sIdx)}
-                        className="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 text-[11px] font-semibold flex items-center gap-1 transition-colors"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Add Episode</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleAddEpisode(sIdx)}
+                          className="px-2.5 py-1 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-400/50 text-cyan-300 text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95 shadow-[0_0_8px_rgba(0,243,255,0.3)] cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>+1 Ep</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddMultipleEpisodes(sIdx, 5)}
+                          className="px-2.5 py-1 rounded-lg bg-fuchsia-950/80 hover:bg-fuchsia-900 border border-fuchsia-500/50 text-fuchsia-300 text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95 shadow-[0_0_8px_rgba(255,0,127,0.3)] cursor-pointer"
+                          title="Quickly add 5 numbered episodes"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>+5 Ep</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* Episodes List inside Season */}
@@ -838,10 +916,13 @@ export const ContentManagerModal: React.FC = () => {
           {/* TAB 3: MANAGE CURRENT CATALOG */}
           {activeTab === 'manage' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-cyan-500/25">
                 <div>
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-                    Current Titles ({series.length})
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <span>Current Titles ({series.length})</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-500/40">
+                      Cloud Synced
+                    </span>
                   </h3>
                   <p className="text-[11px] text-slate-400">All live series and movies stored in your Cloud Firestore</p>
                 </div>
@@ -849,7 +930,7 @@ export const ContentManagerModal: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleExportCatalog}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                    className="px-3 py-1.5 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-400/50 text-cyan-300 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_10px_rgba(0,243,255,0.3)] cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Backup JSON</span>
@@ -857,11 +938,41 @@ export const ContentManagerModal: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleClearAllCatalog}
-                    className="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-800/80 text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                    className="px-3 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_10px_rgba(244,63,94,0.3)] cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Wipe All Dummy Videos</span>
                   </button>
+                </div>
+              </div>
+
+              {/* Search & Filter Bar */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-cyan-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search by title, category, or ID..."
+                    value={manageSearchQuery}
+                    onChange={(e) => setManageSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl bg-slate-950 border border-cyan-500/30 text-white placeholder-slate-500 outline-none focus:border-cyan-400 transition-colors"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                  {['All', 'Movie', 'Anime', 'K-Drama', 'Action', 'Thriller', 'Romance'].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setManageCategoryFilter(cat)}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer ${
+                        manageCategoryFilter === cat
+                          ? 'bg-gradient-to-r from-cyan-500 to-fuchsia-600 text-white shadow-[0_0_10px_rgba(0,243,255,0.4)]'
+                          : 'bg-black text-slate-400 border border-slate-800 hover:text-white hover:border-cyan-500/40'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -874,61 +985,203 @@ export const ContentManagerModal: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {series.map((item) => {
-                    const totalEpisodes = item.seasons.reduce((acc, s) => acc + s.episodes.length, 0);
-                    return (
-                      <div
-                        key={item.id}
-                        className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-center gap-3.5"
-                      >
-                        <img
-                          src={item.thumbnailUrl}
-                          alt={item.title}
-                          className="w-14 h-20 rounded-xl object-cover border border-slate-800 flex-shrink-0 bg-slate-900"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200';
-                          }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-xs font-bold text-white truncate">{item.title}</h4>
-                          <p className="text-[11px] text-slate-400">
-                            {item.category} • {item.year || 2026} • {item.seasons.length} Season(s) • {totalEpisodes} Ep
-                          </p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-medium">
-                              ★ {item.rating || '9.0'}
-                            </span>
-                            <span className="text-[10px] text-slate-500 truncate max-w-[120px]">
-                              ID: {item.id}
-                            </span>
+                <div className="grid grid-cols-1 gap-3">
+                  {series
+                    .filter((item) => {
+                      const matchesSearch =
+                        !manageSearchQuery.trim() ||
+                        item.title.toLowerCase().includes(manageSearchQuery.toLowerCase()) ||
+                        item.category.toLowerCase().includes(manageSearchQuery.toLowerCase()) ||
+                        item.id.toLowerCase().includes(manageSearchQuery.toLowerCase());
+                      const matchesCategory =
+                        manageCategoryFilter === 'All' ||
+                        item.category.toLowerCase() === manageCategoryFilter.toLowerCase();
+                      return matchesSearch && matchesCategory;
+                    })
+                    .map((item) => {
+                      const totalEpisodes = item.seasons.reduce((acc, s) => acc + s.episodes.length, 0);
+                      const isExpanded = expandedSeriesId === item.id;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-3.5 rounded-2xl bg-slate-950 border border-cyan-500/25 hover:border-cyan-500/40 space-y-3 transition-colors shadow-sm"
+                        >
+                          <div className="flex items-center gap-3.5">
+                            <img
+                              src={item.thumbnailUrl}
+                              alt={item.title}
+                              className="w-14 h-20 rounded-xl object-cover border border-cyan-500/30 flex-shrink-0 bg-black"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200';
+                              }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-bold text-white truncate">{item.title}</h4>
+                              <p className="text-[11px] text-slate-400">
+                                {item.category} • {item.year || 2026} • {item.seasons.length} Season(s) • {totalEpisodes} Ep
+                              </p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 font-medium border border-cyan-500/40">
+                                  ★ {item.rating || '9.0'}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-mono truncate max-w-[120px]">
+                                  ID: {item.id}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedSeriesId(isExpanded ? null : item.id)}
+                                className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1 transition-all ${
+                                  isExpanded
+                                    ? 'bg-cyan-950 border-cyan-400 text-cyan-300 shadow-[0_0_8px_rgba(0,243,255,0.4)]'
+                                    : 'bg-black border-slate-800 text-slate-300 hover:text-white'
+                                }`}
+                                title="Expand Episodes"
+                              >
+                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                <span className="hidden sm:inline">Episodes</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEditSeries(item)}
+                                className="p-2 rounded-xl bg-black hover:bg-cyan-950 border border-cyan-500/30 text-cyan-300 transition-colors"
+                                title="Edit in Form Builder"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm(`Delete "${item.title}" from database?`)) {
+                                    deleteSeries(item.id);
+                                  }
+                                }}
+                                className="p-2 rounded-xl bg-black hover:bg-rose-950 border border-rose-500/30 text-rose-400 transition-colors"
+                                title="Delete from Firestore"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
+
+                          {/* Quick Inline Episode List & Editor */}
+                          {isExpanded && (
+                            <div className="pt-2 border-t border-slate-900 space-y-2.5 animate-in fade-in">
+                              <h5 className="text-[11px] font-extrabold text-cyan-300 uppercase tracking-wider">
+                                Quick Episode Inspector & URL Editor ({totalEpisodes} episodes)
+                              </h5>
+
+                              {item.seasons.map((season) => (
+                                <div key={season.seasonNumber} className="space-y-1.5">
+                                  <span className="text-[10px] font-bold text-slate-400 font-mono">
+                                    Season {season.seasonNumber} ({season.episodes.length} episodes)
+                                  </span>
+
+                                  <div className="space-y-1.5">
+                                    {season.episodes.map((ep) => {
+                                      const isEditingThis =
+                                        inlineEditingEp?.seriesId === item.id &&
+                                        inlineEditingEp?.seasonNum === season.seasonNumber &&
+                                        inlineEditingEp?.epId === ep.id;
+
+                                      return (
+                                        <div
+                                          key={ep.id}
+                                          className="p-2 rounded-xl bg-black border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                                        >
+                                          {isEditingThis ? (
+                                            <div className="flex-1 flex flex-col sm:flex-row items-center gap-2 w-full">
+                                              <input
+                                                type="text"
+                                                value={inlineEditingEp.title}
+                                                onChange={(e) =>
+                                                  setInlineEditingEp({ ...inlineEditingEp, title: e.target.value })
+                                                }
+                                                placeholder="Episode Title"
+                                                className="px-2.5 py-1 text-xs rounded-lg bg-slate-950 border border-cyan-400 text-white w-full sm:w-1/3 outline-none"
+                                              />
+                                              <input
+                                                type="text"
+                                                value={inlineEditingEp.videoUrl}
+                                                onChange={(e) =>
+                                                  setInlineEditingEp({ ...inlineEditingEp, videoUrl: e.target.value })
+                                                }
+                                                placeholder="Direct Video Stream URL (.mp4 / .m3u8)"
+                                                className="px-2.5 py-1 text-xs rounded-lg bg-slate-950 border border-cyan-400 text-white w-full sm:flex-1 outline-none font-mono"
+                                              />
+                                              <div className="flex items-center gap-1 self-end sm:self-auto">
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleQuickUpdateEpisode(
+                                                      item.id,
+                                                      season.seasonNumber,
+                                                      ep.id,
+                                                      inlineEditingEp.title,
+                                                      inlineEditingEp.videoUrl
+                                                    )
+                                                  }
+                                                  className="p-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-fuchsia-600 text-white"
+                                                  title="Save Episode Changes"
+                                                >
+                                                  <Save className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setInlineEditingEp(null)}
+                                                  className="p-1.5 rounded-lg bg-slate-900 text-slate-400"
+                                                >
+                                                  <X className="w-3.5 h-3.5" />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <>
+                                              <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                  <span className="font-extrabold text-cyan-300">
+                                                    E{ep.episodeNumber}:
+                                                  </span>
+                                                  <span className="text-white font-medium truncate">
+                                                    {ep.title}
+                                                  </span>
+                                                </div>
+                                                <span className="text-[10px] text-slate-500 font-mono truncate block mt-0.5 max-w-md">
+                                                  {ep.videoUrl || 'No videoUrl set'}
+                                                </span>
+                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setInlineEditingEp({
+                                                    seriesId: item.id,
+                                                    seasonNum: season.seasonNumber,
+                                                    epId: ep.id,
+                                                    title: ep.title,
+                                                    videoUrl: ep.videoUrl
+                                                  })
+                                                }
+                                                className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 text-[10px] font-bold transition-colors self-end sm:self-auto flex items-center gap-1"
+                                              >
+                                                <Edit3 className="w-3 h-3" />
+                                                <span>Quick Edit</span>
+                                              </button>
+                                            </>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleEditSeries(item)}
-                            className="p-2 rounded-xl bg-slate-900 hover:bg-sky-950/60 border border-slate-800 hover:border-sky-700 text-slate-300 hover:text-sky-400 transition-colors"
-                            title="Edit Series & Episodes"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm(`Delete "${item.title}" from database?`)) {
-                                deleteSeries(item.id);
-                              }
-                            }}
-                            className="p-2 rounded-xl bg-slate-900 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-800 text-slate-400 hover:text-rose-400 transition-colors"
-                            title="Delete from Firestore"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                 </div>
               )}
             </div>

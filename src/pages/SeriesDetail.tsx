@@ -23,11 +23,15 @@ import {
   Rewind,
   SkipForward,
   Gauge,
-  Share2
+  Share2,
+  Flame,
+  Tv,
+  Compass
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { Episode, Series, Season } from '../types';
 import { SkeletonImage } from '../components/SkeletonImage';
+import { EpisodeComments } from '../components/EpisodeComments';
 import { getOfflineVideoPlaybackUrl } from '../services/offlineStorage';
 import { sanitizeVideoUrl } from '../services/videoUtils';
 import { ScreenOrientation } from '@capacitor/screen-orientation';
@@ -371,6 +375,50 @@ export const SeriesDetail: React.FC = () => {
     if (currentPlayingEpisode) return currentPlayingEpisode;
     return firstOrResumeEpisode || activeSeason?.episodes[0] || null;
   }, [currentPlayingEpisode, firstOrResumeEpisode, activeSeason]);
+
+  // Recommended Anime & Movies filter and listing
+  const [recommendedFilter, setRecommendedFilter] = useState<string>('All');
+
+  const recommendedItems = useMemo(() => {
+    if (!currentSeries) return [];
+    const others = series.filter((s) => s.id !== currentSeries.id);
+
+    if (recommendedFilter === 'All') {
+      return [...others].sort((a, b) => {
+        const aCatMatch = a.category.toLowerCase() === currentSeries.category.toLowerCase();
+        const bCatMatch = b.category.toLowerCase() === currentSeries.category.toLowerCase();
+        if (aCatMatch && !bCatMatch) return -1;
+        if (!aCatMatch && bCatMatch) return 1;
+        return (b.uploadTimestamp || 0) - (a.uploadTimestamp || 0);
+      });
+    }
+
+    if (recommendedFilter === 'Anime') {
+      return others.filter((s) =>
+        s.category.toLowerCase().includes('anime') ||
+        s.title.toLowerCase().includes('anime') ||
+        s.tags?.some((t) => t.toLowerCase().includes('anime'))
+      );
+    }
+
+    if (recommendedFilter === 'Movies') {
+      return others.filter((s) =>
+        s.category.toLowerCase().includes('movie') ||
+        s.title.toLowerCase().includes('movie') ||
+        (s.seasons?.length === 1 && s.seasons[0]?.episodes?.length === 1)
+      );
+    }
+
+    return others.filter((s) =>
+      s.category.toLowerCase().includes(recommendedFilter.toLowerCase())
+    );
+  }, [series, currentSeries, recommendedFilter]);
+
+  const handleSelectRecommended = (item: Series) => {
+    haptic(45);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setSelectedSeriesId(item.id);
+  };
 
   // Video time update handler
   const handleTimeUpdate = () => {
@@ -1644,6 +1692,124 @@ export const SeriesDetail: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* 4. EPISODE DISCUSSION & COMMENT BOX (Neon Community Hub) */}
+        <EpisodeComments
+          seriesId={currentSeries.id}
+          seasonNumber={activeSeason.seasonNumber}
+          episodeNumber={currentPlayingEpisode?.episodeNumber || activeEpisodeForDetails?.episodeNumber || 1}
+          episodeTitle={currentPlayingEpisode?.title || activeEpisodeForDetails?.title}
+        />
+
+        {/* 5. RECOMMENDED ANIME & MOVIES ("Half video player ke usi ke tarah anime movie vagaraha recommended") */}
+        <div className="space-y-3.5 pt-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-fuchsia-950/80 border border-fuchsia-500/40 text-fuchsia-300 shadow-[0_0_10px_rgba(255,0,127,0.3)]">
+                <Flame className="w-4 h-4 text-fuchsia-400" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+                  <span>Recommended Anime & Movies</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-fuchsia-950/90 text-fuchsia-300 font-mono font-bold border border-fuchsia-500/40">
+                    More Like This
+                  </span>
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Trending picks based on {currentSeries.category}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Recommendation Filter Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {['All', 'Anime', 'Movies', 'Thriller', 'Romance'].map((tab) => {
+              const isSelected = recommendedFilter === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => {
+                    haptic(25);
+                    setRecommendedFilter(tab);
+                  }}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-150 active:scale-95 cursor-pointer ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-cyan-500 via-sky-500 to-fuchsia-600 text-white border border-cyan-300 shadow-[0_0_12px_rgba(0,243,255,0.5)]'
+                      : 'bg-black text-slate-400 border border-slate-800 hover:text-white hover:border-cyan-500/40'
+                  }`}
+                >
+                  {tab}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Recommended Content Cards Grid */}
+          {recommendedItems.length === 0 ? (
+            <div className="p-6 rounded-2xl bg-black border border-slate-800 text-center space-y-1 text-slate-500 text-xs">
+              <Compass className="w-6 h-6 mx-auto text-slate-600" />
+              <p>Explore other categories for more anime and movies</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {recommendedItems.slice(0, 8).map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => handleSelectRecommended(item)}
+                  className="group relative rounded-2xl overflow-hidden bg-black border border-cyan-500/25 hover:border-cyan-400/80 shadow-[0_0_15px_rgba(0,0,0,0.8)] hover:shadow-[0_0_20px_rgba(0,243,255,0.3)] transition-all duration-200 active:scale-98 cursor-pointer flex flex-col"
+                >
+                  {/* Thumbnail with SkeletonImage */}
+                  <div className="relative aspect-[3/4] w-full overflow-hidden bg-slate-950">
+                    <SkeletonImage
+                      src={item.thumbnailUrl}
+                      alt={item.title}
+                      containerClassName="w-full h-full"
+                      imageClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80" />
+
+                    {/* Category pill */}
+                    <div className="absolute top-2 left-2">
+                      <span className="px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md text-[9px] font-black tracking-wider uppercase text-cyan-300 border border-cyan-500/40 shadow-[0_0_6px_rgba(0,243,255,0.4)]">
+                        {item.category}
+                      </span>
+                    </div>
+
+                    {/* Rating badge */}
+                    {item.rating && (
+                      <div className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-black/80 backdrop-blur-md text-amber-300 text-[10px] font-bold border border-amber-400/40">
+                        <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
+                        <span>{item.rating}</span>
+                      </div>
+                    )}
+
+                    {/* Play hover overlay button */}
+                    <div className="absolute bottom-2 right-2 p-2 rounded-xl bg-gradient-to-tr from-cyan-500 via-sky-500 to-fuchsia-600 text-white shadow-[0_0_15px_rgba(0,243,255,0.7)] group-hover:scale-110 active:scale-90 transition-all opacity-90 group-hover:opacity-100">
+                      <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                    </div>
+                  </div>
+
+                  {/* Title and metadata */}
+                  <div className="p-2.5 flex-1 flex flex-col justify-between space-y-1">
+                    <h4 className="font-extrabold text-xs text-white line-clamp-1 group-hover:text-cyan-300 transition-colors">
+                      {item.title}
+                    </h4>
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                      <span>{item.year || 2026}</span>
+                      <span className="text-cyan-400 font-semibold">
+                        {item.seasons?.length === 1 && item.seasons[0]?.episodes?.length === 1
+                          ? 'Movie'
+                          : `${item.seasons?.length || 1} Seasons`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

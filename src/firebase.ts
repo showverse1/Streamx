@@ -11,7 +11,10 @@ import {
   User
 } from 'firebase/auth';
 import {
+  initializeFirestore,
   getFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   collection,
   getDocs,
   doc,
@@ -22,20 +25,41 @@ import {
   where,
   limit,
   writeBatch,
-  deleteDoc
+  deleteDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+  increment,
+  onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-import { Series, UserProfile, WatchHistoryItem } from './types';
+import { Series, UserProfile, WatchHistoryItem, EpisodeComment } from './types';
 
 // Initial series catalog (Clean - no AI generated dummy items)
 export const INITIAL_SERIES_DATA: Series[] = [];
 
-// Firebase App & Services Initialization
+// Firebase App & Services Initialization with resilient offline cache & auto-detected long-polling
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
+
+function createFirestoreInstance() {
+  const customDbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
+    ? firebaseConfig.firestoreDatabaseId
+    : undefined;
+
+  try {
+    return initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true,
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    }, customDbId);
+  } catch {
+    return customDbId ? getFirestore(app, customDbId) : getFirestore(app);
+  }
+}
+
+export const db = createFirestoreInstance();
 
 // Save or update a single Series/Movie in Firestore
 export async function saveSeriesToFirestore(series: Series): Promise<void> {
@@ -322,4 +346,193 @@ export async function clearUserWatchHistoryInFirestore(userId: string): Promise<
 // Listen to Firebase Auth state changes
 export function subscribeToAuthState(callback: (user: User | null) => void): () => void {
   return onAuthStateChanged(auth, callback);
+}
+
+// =========================================================================
+// EPISODE COMMENTS SYSTEM (Neon Cyberpunk Community Discussions)
+// =========================================================================
+
+const COMMENTS_CACHE_PREFIX = 'streamx_comments_';
+
+function getLocalCachedComments(key: string): EpisodeComment[] {
+  try {
+    const raw = localStorage.getItem(`${COMMENTS_CACHE_PREFIX}${key}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalCachedComments(key: string, comments: EpisodeComment[]): void {
+  try {
+    localStorage.setItem(`${COMMENTS_CACHE_PREFIX}${key}`, JSON.stringify(comments));
+  } catch {}
+}
+
+export async function fetchEpisodeComments(
+  seriesId: string,
+  seasonNumber: number,
+  episodeNumber: number
+): Promise<EpisodeComment[]> {
+  const cacheKey = `${seriesId}_s${seasonNumber}_e${episodeNumber}`;
+  try {
+    const commentsCol = collection(db, 'episodeComments');
+    const q = query(
+      commentsCol,
+      where('seriesId', '==', seriesId),
+      where('seasonNumber', '==', seasonNumber),
+      where('episodeNumber', '==', episodeNumber),
+      orderBy('timestamp', 'desc'),
+      limit(50)
+    );
+    const snap = await getDocs(q);
+    const list: EpisodeComment[] = [];
+    snap.forEach((d) => {
+      list.push({ id: d.id, ...(d.data() as Omit<EpisodeComment, 'id'>) });
+    });
+    if (list.length > 0) {
+      saveLocalCachedComments(cacheKey, list);
+    }
+    return list.length > 0 ? list : getLocalCachedComments(cacheKey);
+  } catch (err) {
+    console.warn('Comments query notice (using local offline cache):', err);
+    return getLocalCachedComments(cacheKey);
+  }
+}
+
+export function subscribeEpisodeComments(
+  seriesId: string,
+  seasonNumber: number,
+  episodeNumber: number,
+  callback: (comments: EpisodeComment[]) => void
+): () => void {
+  const cacheKey = `${seriesId}_s${seasonNumber}_e${episodeNumber}`;
+  // Immediately provide cached comments so UI never flickers
+  const cached = getLocalCachedComments(cacheKey);
+  if (cached.length > 0) {
+    callback(cached);
+  }
+
+  try {
+    const commentsCol = collection(db, 'episodeComments');
+    const q = query(
+      commentsCol,
+      where('seriesId', '==', seriesId),
+      where('seasonNumber', '==', seasonNumber),
+      where('episodeNumber', '==', episodeNumber),
+      orderBy('timestamp', 'desc'),
+      limit(60)
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const list: EpisodeComment[] = [];
+        snapshot.forEach((d) => {
+          list.push({ id: d.id, ...(d.data() as Omit<EpisodeComment, 'id'>) });
+        });
+        saveLocalCachedComments(cacheKey, list);
+        callback(list);
+      },
+      (err) => {
+        console.warn('Comments snapshot warning (offline fallback active):', err);
+        callback(getLocalCachedComments(cacheKey));
+      }
+    );
+  } catch (err) {
+    console.warn('Comments subscription notice:', err);
+    return () => {};
+  }
+}
+
+export async function addEpisodeComment(data: {
+  seriesId: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  userId?: string;
+  userName: string;
+  userAvatar?: string;
+  text: string;
+}): Promise<EpisodeComment> {
+  const cacheKey = `${data.seriesId}_s${data.seasonNumber}_e${data.episodeNumber}`;
+  const newComment: EpisodeComment = {
+    id: `cmt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    ...data,
+    timestamp: Date.now(),
+    likes: 0,
+    likedBy: []
+  };
+
+  // Optimistically store in local cache
+  const existing = getLocalCachedComments(cacheKey);
+  saveLocalCachedComments(cacheKey, [newComment, ...existing]);
+
+  // Persist to Cloud Firestore
+  try {
+    const docRef = doc(db, 'episodeComments', newComment.id);
+    await setDoc(docRef, newComment);
+  } catch (err) {
+    console.warn('Comment write warning (stored in local offline cache):', err);
+  }
+
+  return newComment;
+}
+
+export async function toggleCommentLike(
+  commentId: string,
+  userIdOrAnon: string,
+  seriesId: string,
+  seasonNumber: number,
+  episodeNumber: number
+): Promise<{ likes: number; isLiked: boolean }> {
+  const cacheKey = `${seriesId}_s${seasonNumber}_e${episodeNumber}`;
+  const existing = getLocalCachedComments(cacheKey);
+  const target = existing.find((c) => c.id === commentId);
+
+  let willLike = true;
+  let newLikes = (target?.likes || 0) + 1;
+
+  if (target) {
+    const currentLikedBy = target.likedBy || [];
+    if (currentLikedBy.includes(userIdOrAnon)) {
+      willLike = false;
+      target.likedBy = currentLikedBy.filter((u) => u !== userIdOrAnon);
+      target.likes = Math.max(0, (target.likes || 1) - 1);
+    } else {
+      willLike = true;
+      target.likedBy = [...currentLikedBy, userIdOrAnon];
+      target.likes = (target.likes || 0) + 1;
+    }
+    newLikes = target.likes;
+    saveLocalCachedComments(cacheKey, [...existing]);
+  }
+
+  try {
+    const docRef = doc(db, 'episodeComments', commentId);
+    await updateDoc(docRef, {
+      likes: willLike ? increment(1) : increment(-1),
+      likedBy: willLike ? arrayUnion(userIdOrAnon) : arrayRemove(userIdOrAnon)
+    });
+  } catch (err) {
+    console.warn('Like toggle write warning:', err);
+  }
+
+  return { likes: newLikes, isLiked: willLike };
+}
+
+export async function deleteEpisodeComment(
+  commentId: string,
+  seriesId: string,
+  seasonNumber: number,
+  episodeNumber: number
+): Promise<void> {
+  const cacheKey = `${seriesId}_s${seasonNumber}_e${episodeNumber}`;
+  const existing = getLocalCachedComments(cacheKey);
+  saveLocalCachedComments(cacheKey, existing.filter((c) => c.id !== commentId));
+
+  try {
+    await deleteDoc(doc(db, 'episodeComments', commentId));
+  } catch (err) {
+    console.warn('Comment deletion warning:', err);
+  }
 }
