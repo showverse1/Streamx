@@ -17,7 +17,7 @@ import {
   saveAppThemeToFirestore,
   fetchAppThemeFromFirestore
 } from './firebase';
-import { storage } from './storage';
+import { storage, GlobalAnnouncement } from './storage';
 import { downloadEpisodeToAppFolder, deleteOfflineVideo } from './services/offlineStorage';
 import { sanitizeVideoUrl } from './services/videoUtils';
 import { applyThemeToDOM } from './services/themeService';
@@ -108,6 +108,10 @@ interface AppState {
 
   // Clear all local histories
   clearAllHistory: () => void;
+
+  // Global Broadcast Announcement
+  announcement: GlobalAnnouncement;
+  setAnnouncement: (ann: GlobalAnnouncement) => void;
 
   // Global App Theme
   currentTheme: string;
@@ -280,7 +284,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setCurrentTab: (tab: TabType) => {
     get().haptic(35);
-    set({ currentTab: tab, selectedSeriesId: null });
+    if (tab === 'studio') {
+      const email = get().user?.email?.toLowerCase().trim();
+      const adminEmails = ['vk8260428@gmail.com', 'verseshow94@gmail.com'];
+      if (!email || !adminEmails.includes(email)) {
+        set({ currentTab: 'home', selectedSeriesId: null, isContentManagerOpen: false });
+        return;
+      }
+      set({ currentTab: 'studio', selectedSeriesId: null, isContentManagerOpen: true });
+      return;
+    }
+    set({ currentTab: tab, selectedSeriesId: null, isContentManagerOpen: false });
   },
 
   setSelectedSeriesId: (id: string | null) => {
@@ -370,8 +384,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (!email || !adminEmails.includes(email)) {
         return;
       }
+      set({ isContentManagerOpen: true, currentTab: 'studio', selectedSeriesId: null });
+    } else {
+      set({
+        isContentManagerOpen: false,
+        currentTab: get().currentTab === 'studio' ? 'home' : get().currentTab
+      });
     }
-    set({ isContentManagerOpen: open });
   },
 
   addSeries: async (series: Series) => {
@@ -626,6 +645,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         console.warn('Firestore clear all history warning:', err);
       });
     }
+  },
+
+  // Global Broadcast Announcement
+  announcement: storage.getAnnouncement(),
+  setAnnouncement: (ann: GlobalAnnouncement) => {
+    storage.saveAnnouncement(ann);
+    set({ announcement: ann });
   },
 
   // Global App Theme Store

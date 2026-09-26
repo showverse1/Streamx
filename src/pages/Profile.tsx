@@ -25,7 +25,6 @@ export const Profile: React.FC = () => {
     user,
     logout,
     setIsAuthModalOpen,
-    setIsContentManagerOpen,
     watchHistory,
     recentSearches,
     clearAllHistory,
@@ -257,7 +256,7 @@ export const Profile: React.FC = () => {
         )}
       </div>
 
-      {/* Creator Studio Quick Mini Button (Compact & Clean) */}
+      {/* Creator Studio Status Indicator */}
       {user?.email && ['vk8260428@gmail.com', 'verseshow94@gmail.com'].includes(user.email.toLowerCase().trim()) && (
         <div className="flex items-center justify-between p-2.5 px-3.5 rounded-2xl bg-[#090d16] border border-cyan-500/30 shadow-[0_0_15px_rgba(0,243,255,0.12)]">
           <div className="flex items-center gap-2.5">
@@ -266,29 +265,16 @@ export const Profile: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black text-white">Creator Studio</span>
+                <span className="text-xs font-black text-white">Creator Studio Admin</span>
                 <span className="text-[9px] font-mono font-bold text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
-                  ADMIN
+                  ACTIVE
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 font-mono">
-                {series.length} Titles in Catalog
+                {series.length} Titles Synced • Open via bottom "Studio" tab
               </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              haptic(40);
-              setIsContentManagerOpen(true);
-            }}
-            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20 hover:from-cyan-500/30 hover:to-fuchsia-500/30 text-cyan-300 border border-cyan-400/50 text-xs font-bold shadow-[0_0_10px_rgba(0,243,255,0.2)] active:scale-95 transition cursor-pointer flex items-center gap-1.5"
-            title="Open Creator Studio"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
-            <span>Open Studio</span>
-          </button>
         </div>
       )}
 

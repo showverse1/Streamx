@@ -20,7 +20,6 @@ import {
   doc,
   setDoc,
   getDoc,
-  getDocFromServer,
   query,
   orderBy,
   where,
@@ -31,15 +30,21 @@ import {
   arrayUnion,
   arrayRemove,
   increment,
-  onSnapshot
+  onSnapshot,
+  setLogLevel
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { Series, UserProfile, WatchHistoryItem, EpisodeComment } from './types';
 
+// Suppress Firestore verbose connection warning logs
+try {
+  setLogLevel('error');
+} catch {}
+
 // Initial series catalog (Clean - no AI generated dummy items)
 export const INITIAL_SERIES_DATA: Series[] = [];
 
-// Firebase App & Services Initialization with resilient offline cache & forced long-polling
+// Firebase App & Services Initialization with resilient offline cache
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
@@ -50,7 +55,6 @@ function createFirestoreInstance() {
 
   try {
     return initializeFirestore(app, {
-      experimentalForceLongPolling: true,
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager()
       })
@@ -61,18 +65,6 @@ function createFirestoreInstance() {
 }
 
 export const db = createFirestoreInstance();
-
-// Validate Firestore connection on boot as recommended by the Firebase skill
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firestore offline notice: client operating in offline mode.');
-    }
-  }
-}
-testConnection();
 
 // Save or update a single Series/Movie in Firestore
 export async function saveSeriesToFirestore(series: Series): Promise<void> {

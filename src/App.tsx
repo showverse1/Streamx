@@ -47,6 +47,8 @@ export default function App() {
         return <MoviesPage />;
       case 'me':
         return <Profile />;
+      case 'studio':
+        return <ContentManagerModal />;
       default:
         return <Home />;
     }
@@ -60,9 +62,6 @@ export default function App() {
 
       {/* Email & Password Authentication Modal */}
       <AuthModal />
-
-      {/* Content Studio & Bulk Uploader Modal */}
-      <ContentManagerModal />
 
       {/* Fullscreen Video Player with Custom Touch Gestures & Landscape Lock (for Home/Downloads; SeriesDetail uses inline YouTube player) */}
       {activePlayback && !selectedSeriesId && <VideoPlayer />}

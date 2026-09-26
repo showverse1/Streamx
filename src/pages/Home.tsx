@@ -14,7 +14,6 @@ export const Home: React.FC = () => {
     setSelectedCategory,
     openSeriesWithEpisode,
     setSelectedSeriesId,
-    setIsContentManagerOpen,
     haptic
   } = useAppStore();
 
@@ -130,19 +129,6 @@ export const Home: React.FC = () => {
               : 'Fresh cinema titles and web series are dropping soon. Stay tuned!'}
           </p>
         </div>
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() => {
-              haptic(40);
-              setIsContentManagerOpen(true);
-            }}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20 hover:from-cyan-500/30 hover:to-fuchsia-500/30 text-cyan-300 border border-cyan-400/50 text-xs font-bold shadow-[0_0_12px_rgba(0,243,255,0.25)] transition-all active:scale-95 flex items-center justify-center gap-2 mx-auto cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
-            <span>Open Creator Studio</span>
-          </button>
-        )}
       </div>
     );
   }

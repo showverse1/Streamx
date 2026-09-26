@@ -26,7 +26,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     stopPlayback,
     backExitWarning,
     setBackExitWarning,
-    setIsContentManagerOpen,
+    announcement,
     haptic
   } = useAppStore();
 
@@ -223,10 +223,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     };
   }, [handleBackAction]);
 
-  const navItems: { tab: TabType; label: string; icon: typeof Home }[] = [
+  const ADMIN_EMAILS = ['vk8260428@gmail.com', 'verseshow94@gmail.com'];
+  const isAdmin = user?.email ? ADMIN_EMAILS.includes(user.email.toLowerCase().trim()) : false;
+
+  const navItems: { tab: TabType; label: string; icon: typeof Home; isStudio?: boolean }[] = [
     { tab: 'home', label: 'Home', icon: Home },
     { tab: 'movies', label: 'Cinema', icon: Film },
     { tab: 'search', label: 'Search', icon: Search },
+    ...(isAdmin ? [{ tab: 'studio' as TabType, label: 'Studio', icon: Sparkles, isStudio: true }] : []),
     { tab: 'me', label: 'Profile', icon: User },
   ];
 
@@ -285,22 +289,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           {/* Quick Header Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Quick Mini Creator Studio Button for Admin */}
-            {user?.email && ['vk8260428@gmail.com', 'verseshow94@gmail.com'].includes(user.email.toLowerCase().trim()) && (
-              <button
-                type="button"
-                onClick={() => {
-                  haptic(40);
-                  setIsContentManagerOpen(true);
-                }}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20 border border-cyan-400/50 text-cyan-300 text-xs font-bold shadow-[0_0_10px_rgba(0,243,255,0.25)] active:scale-95 transition cursor-pointer"
-                title="Open Creator Studio"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
-                <span className="text-[11px] font-mono font-bold">Studio</span>
-              </button>
-            )}
-
             <RefreshRateBadge />
 
             <button
@@ -327,11 +315,33 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </header>
       )}
 
+      {/* Global Broadcast Announcement Ticker (Managed by Creator Studio) */}
+      {announcement?.enabled && announcement.text && currentTab !== 'studio' && (
+        <div className="bg-black/90 border-b border-cyan-500/25 px-3 py-1.5 flex items-center gap-2 overflow-hidden shadow-[0_2px_10px_rgba(0,0,0,0.8)] backdrop-blur-md">
+          <span
+            className={`px-2 py-0.5 rounded text-[9px] font-mono font-black uppercase tracking-wider shrink-0 ${
+              announcement.type === 'warning'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-[0_0_8px_rgba(245,158,11,0.4)]'
+                : announcement.type === 'alert'
+                ? 'bg-rose-500/20 text-rose-300 border border-rose-400/50 shadow-[0_0_8px_rgba(244,63,94,0.4)]'
+                : announcement.type === 'vip'
+                ? 'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/50 shadow-[0_0_8px_rgba(217,70,239,0.4)]'
+                : 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/50 shadow-[0_0_8px_rgba(0,243,255,0.4)]'
+            }`}
+          >
+            {announcement.tag || 'BROADCAST'}
+          </span>
+          <p className="truncate text-slate-200 text-[11px] font-semibold tracking-tight">
+            {announcement.text}
+          </p>
+        </div>
+      )}
+
       {/* Offline Toast Notification */}
       <OfflineToast />
 
       {/* Main Page Content with 120Hz smooth acceleration */}
-      <main className="flex-1 pb-24 gpu-smooth bg-black">
+      <main className={`flex-1 ${currentTab === 'studio' ? 'pb-0' : 'pb-24'} gpu-smooth bg-black`}>
         {children}
       </main>
 
@@ -348,52 +358,62 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       )}
 
-      {/* Fixed Bottom Navigation Bar - Electric Neon Cyber Aesthetic */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-2xl border-t border-cyan-500/25 safe-pb shadow-[0_-5px_25px_rgba(0,0,0,0.95)] gpu-smooth">
-        <div className="max-w-md mx-auto grid grid-cols-4 px-2 py-1.5">
-          {navItems.map(({ tab, label, icon: Icon }) => {
-            const isActive = currentTab === tab && !selectedSeriesId;
-            return (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => {
-                  haptic(35);
-                  setCurrentTab(tab);
-                }}
-                className={`relative flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all duration-200 active:scale-90 cursor-pointer ${
-                  isActive ? 'text-cyan-300 font-black' : 'text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                {isActive && (
-                  <span className="absolute inset-0 rounded-xl bg-gradient-to-t from-cyan-500/15 via-cyan-500/5 to-transparent pointer-events-none" />
-                )}
-                <div className="relative">
-                  <Icon
-                    className={`w-5 h-5 transition-all duration-200 ${
-                      isActive
-                        ? 'scale-110 stroke-[2.5] text-cyan-300 drop-shadow-[0_0_10px_rgba(0,243,255,0.9)]'
-                        : 'stroke-[1.8]'
-                    }`}
-                  />
-                  {isActive && (
-                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_#00f3ff]" />
-                  )}
-                </div>
-                <span
-                  className={`text-[11px] mt-1 tracking-tight ${
+      {/* Fixed Bottom Navigation Bar - Electric Neon Cyber Aesthetic (Hidden when in dedicated Creator Studio Mode) */}
+      {currentTab !== 'studio' && (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-2xl border-t border-cyan-500/25 safe-pb shadow-[0_-5px_25px_rgba(0,0,0,0.95)] gpu-smooth">
+          <div className={`max-w-md mx-auto grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} px-2 py-1.5`}>
+            {navItems.map(({ tab, label, icon: Icon, isStudio }) => {
+              const isActive = currentTab === tab && !selectedSeriesId;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => {
+                    haptic(35);
+                    setCurrentTab(tab);
+                  }}
+                  className={`relative flex flex-col items-center justify-center py-1.5 px-1.5 rounded-2xl transition-all duration-200 active:scale-90 cursor-pointer ${
                     isActive
-                      ? 'text-cyan-300 font-black drop-shadow-[0_0_8px_rgba(0,243,255,0.7)]'
-                      : 'text-slate-500 font-medium'
+                      ? 'text-cyan-300 font-black'
+                      : isStudio
+                      ? 'text-fuchsia-400/90 hover:text-fuchsia-300'
+                      : 'text-slate-500 hover:text-slate-300'
                   }`}
                 >
-                  {label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+                  {isActive && (
+                    <span className="absolute inset-0 rounded-xl bg-gradient-to-t from-cyan-500/15 via-cyan-500/5 to-transparent pointer-events-none" />
+                  )}
+                  <div className="relative">
+                    <Icon
+                      className={`w-5 h-5 transition-all duration-200 ${
+                        isActive
+                          ? 'scale-110 stroke-[2.5] text-cyan-300 drop-shadow-[0_0_10px_rgba(0,243,255,0.9)]'
+                          : isStudio
+                          ? 'stroke-[2] text-fuchsia-400 drop-shadow-[0_0_8px_rgba(217,70,239,0.5)]'
+                          : 'stroke-[1.8]'
+                      }`}
+                    />
+                    {isActive && (
+                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_#00f3ff]" />
+                    )}
+                  </div>
+                  <span
+                    className={`text-[10px] mt-1 tracking-tight truncate ${
+                      isActive
+                        ? 'text-cyan-300 font-black drop-shadow-[0_0_8px_rgba(0,243,255,0.7)]'
+                        : isStudio
+                        ? 'text-fuchsia-400 font-bold'
+                        : 'text-slate-500 font-medium'
+                    }`}
+                  >
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </div>
   );
 };

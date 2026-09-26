@@ -7,7 +7,40 @@ const USER_KEY = 'streamx_user_profile';
 const SERIES_CACHE_KEY = 'streamx_series_cache';
 const APP_THEME_KEY = 'streamx_app_theme';
 
+export interface GlobalAnnouncement {
+  enabled: boolean;
+  text: string;
+  tag: string;
+  type: 'info' | 'warning' | 'alert' | 'vip';
+}
+
+const DEFAULT_ANNOUNCEMENT: GlobalAnnouncement = {
+  enabled: false,
+  text: 'StreamX 4K Cinema: Stream high-speed movies & web series with zero buffering.',
+  tag: 'NOTICE',
+  type: 'info'
+};
+
+const ANNOUNCEMENT_KEY = 'streamx_global_announcement';
+
 export const storage = {
+  getAnnouncement(): GlobalAnnouncement {
+    try {
+      const raw = localStorage.getItem(ANNOUNCEMENT_KEY);
+      if (!raw) return DEFAULT_ANNOUNCEMENT;
+      return JSON.parse(raw);
+    } catch {
+      return DEFAULT_ANNOUNCEMENT;
+    }
+  },
+
+  saveAnnouncement(ann: GlobalAnnouncement): void {
+    try {
+      localStorage.setItem(ANNOUNCEMENT_KEY, JSON.stringify(ann));
+    } catch (e) {
+      console.error('Failed to save announcement', e);
+    }
+  },
   getCachedSeries(): Series[] {
     try {
       const raw = localStorage.getItem(SERIES_CACHE_KEY);

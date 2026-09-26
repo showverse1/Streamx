@@ -70,7 +70,7 @@ export interface UserProfile {
   role?: string;
 }
 
-export type TabType = 'home' | 'movies' | 'search' | 'downloads' | 'me';
+export type TabType = 'home' | 'movies' | 'search' | 'downloads' | 'me' | 'studio';
 
 export interface EpisodeComment {
   id: string;
