@@ -137,10 +137,10 @@ export const Home: React.FC = () => {
               haptic(40);
               setIsContentManagerOpen(true);
             }}
-            className="w-full py-3 px-5 rounded-2xl bg-gradient-to-r from-cyan-500 via-sky-500 to-fuchsia-600 hover:from-cyan-400 hover:to-fuchsia-500 text-white font-extrabold text-xs shadow-[0_0_20px_rgba(0,243,255,0.5)] transition-all active:scale-95 flex items-center justify-center gap-2"
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20 hover:from-cyan-500/30 hover:to-fuchsia-500/30 text-cyan-300 border border-cyan-400/50 text-xs font-bold shadow-[0_0_12px_rgba(0,243,255,0.25)] transition-all active:scale-95 flex items-center justify-center gap-2 mx-auto cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-cyan-200" />
-            <span>Upload Movies & Series (Bulk Import)</span>
+            <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Open Creator Studio</span>
           </button>
         )}
       </div>

@@ -257,31 +257,25 @@ export const Profile: React.FC = () => {
         )}
       </div>
 
-      {/* Content Studio & Upload Hub (STRICTLY ADMIN ONLY: vk8260428@gmail.com) */}
-      {user?.email?.toLowerCase().trim() === 'vk8260428@gmail.com' && (
-        <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 p-4 border border-rose-500/30 space-y-3 shadow-lg shadow-rose-950/20 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                <Film className="w-4 h-4" />
+      {/* Creator Studio Quick Mini Button (Compact & Clean) */}
+      {user?.email && ['vk8260428@gmail.com', 'verseshow94@gmail.com'].includes(user.email.toLowerCase().trim()) && (
+        <div className="flex items-center justify-between p-2.5 px-3.5 rounded-2xl bg-[#090d16] border border-cyan-500/30 shadow-[0_0_15px_rgba(0,243,255,0.12)]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-fuchsia-600 flex items-center justify-center shadow-[0_0_10px_rgba(0,243,255,0.4)] border border-cyan-300">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-black text-white">Creator Studio</span>
+                <span className="text-[9px] font-mono font-bold text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
+                  ADMIN
+                </span>
               </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-white flex items-center gap-1.5">
-                  Content Studio
-                  <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
-                    Admin
-                  </span>
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  {series.length} Movies & Series in Cloud Firestore
-                </p>
-              </div>
+              <p className="text-[10px] text-slate-400 font-mono">
+                {series.length} Titles in Catalog
+              </p>
             </div>
           </div>
-
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Content Manager: Add movies, web series, seasons, episodes, thumbnails & video stream links.
-          </p>
 
           <button
             type="button"
@@ -289,10 +283,11 @@ export const Profile: React.FC = () => {
               haptic(40);
               setIsContentManagerOpen(true);
             }}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-xs shadow-lg shadow-rose-600/25 transition-all active:scale-98 flex items-center justify-center gap-2"
+            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20 hover:from-cyan-500/30 hover:to-fuchsia-500/30 text-cyan-300 border border-cyan-400/50 text-xs font-bold shadow-[0_0_10px_rgba(0,243,255,0.2)] active:scale-95 transition cursor-pointer flex items-center gap-1.5"
+            title="Open Creator Studio"
           >
-            <Sparkles className="w-4 h-4 text-amber-200" />
-            <span>Open Content Manager & Bulk Uploader</span>
+            <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Open Studio</span>
           </button>
         </div>
       )}

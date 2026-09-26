@@ -15,6 +15,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const {
+    user,
     currentTab,
     setCurrentTab,
     selectedSeriesId,
@@ -25,6 +26,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     stopPlayback,
     backExitWarning,
     setBackExitWarning,
+    setIsContentManagerOpen,
     haptic
   } = useAppStore();
 
@@ -256,25 +258,25 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             }}
             className="flex items-center gap-2.5 cursor-pointer active:scale-95 transition-transform"
           >
-            {/* Cinema Play Squircle Badge */}
-            <div className="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-600 via-rose-500 to-amber-500 p-[1.5px] shadow-[0_0_15px_rgba(244,63,94,0.4)]">
+            {/* Cyber Neon Stream Badge */}
+            <div className="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-400 via-purple-500 to-pink-500 p-[1.5px] shadow-[0_0_16px_rgba(0,243,255,0.6)]">
               <div className="w-full h-full rounded-[10px] bg-black flex items-center justify-center">
-                <Play className="w-3.5 h-3.5 fill-rose-500 text-rose-500 ml-0.5 drop-shadow-[0_0_6px_#f43f5e]" />
+                <Play className="w-3.5 h-3.5 fill-cyan-400 text-cyan-400 ml-0.5 drop-shadow-[0_0_6px_#00f3ff]" />
               </div>
             </div>
 
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-black text-lg tracking-tight text-white drop-shadow">
-                  Stream<span className="text-rose-500">X</span>
+                  Stream<span className="text-cyan-400 drop-shadow-[0_0_8px_#00f3ff]">X</span>
                 </span>
-                <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 font-mono text-[9px] font-black tracking-widest uppercase border border-rose-500/30">
-                  HD
+                <span className="px-1.5 py-0.2 rounded bg-gradient-to-r from-cyan-500/20 to-pink-500/20 text-cyan-300 font-mono text-[9px] font-black tracking-widest uppercase border border-cyan-400/40 shadow-[0_0_8px_rgba(0,243,255,0.4)]">
+                  NEON
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e] animate-ping" />
-                <span className="text-[10px] text-slate-400 font-mono tracking-wider font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#00f3ff] animate-ping" />
+                <span className="text-[10px] text-cyan-300 font-mono tracking-wider font-semibold">
                   CINEMA • 4K
                 </span>
               </div>
@@ -283,6 +285,22 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           {/* Quick Header Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Quick Mini Creator Studio Button for Admin */}
+            {user?.email && ['vk8260428@gmail.com', 'verseshow94@gmail.com'].includes(user.email.toLowerCase().trim()) && (
+              <button
+                type="button"
+                onClick={() => {
+                  haptic(40);
+                  setIsContentManagerOpen(true);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-fuchsia-500/20 border border-cyan-400/50 text-cyan-300 text-xs font-bold shadow-[0_0_10px_rgba(0,243,255,0.25)] active:scale-95 transition cursor-pointer"
+                title="Open Creator Studio"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+                <span className="text-[11px] font-mono font-bold">Studio</span>
+              </button>
+            )}
+
             <RefreshRateBadge />
 
             <button

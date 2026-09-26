@@ -309,6 +309,20 @@ export const SeriesDetail: React.FC = () => {
     return currentSeries.seasons.find((s) => s.seasonNumber === activeSeasonNum) || currentSeries.seasons[0];
   }, [currentSeries, activeSeasonNum]);
 
+  // Identify whether content is Movie or Web Series
+  const isMovie = useMemo(() => {
+    if (!currentSeries) return false;
+    const cat = (currentSeries.category || '').toLowerCase();
+    if (cat === 'movie' || cat === 'movies' || cat === 'cinema' || cat === 'film') return true;
+    const totalEps = currentSeries.seasons.reduce((acc, s) => acc + (s.episodes?.length || 0), 0);
+    return currentSeries.seasons.length <= 1 && totalEps <= 1;
+  }, [currentSeries]);
+
+  const totalEpisodesCount = useMemo(() => {
+    if (!currentSeries) return 0;
+    return currentSeries.seasons.reduce((acc, s) => acc + (s.episodes?.length || 0), 0);
+  }, [currentSeries]);
+
   // Check if an episode is marked 'watched' in Watch History (LocalStorage)
   const isEpisodeWatched = (epNum: number, seasonNum = activeSeason?.seasonNumber || 1) => {
     if (!currentSeries) return false;
@@ -1593,17 +1607,21 @@ export const SeriesDetail: React.FC = () => {
           </div>
         )}
 
-        {/* NOW PLAYING TITLE BAR (Shown below video when inline player is active) */}
+        {/* NOW PLAYING STATUS BAR (Shown below video when inline player is active) */}
         {isPlayingInline && currentPlayingEpisode && (
-          <div className="px-4 py-3 bg-[#0e1017] border-b border-slate-800 flex items-center justify-between gap-3 animate-in fade-in duration-200">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-rose-400">
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                <span>Now Playing • S{activeSeason.seasonNumber}:E{currentPlayingEpisode.episodeNumber}</span>
+          <div className="px-4 py-2.5 bg-[#0a0d14] border-b border-cyan-500/20 flex items-center justify-between gap-3 animate-in fade-in duration-200 shadow-md">
+            <div className="min-w-0 flex-1 flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#00f3ff] animate-ping shrink-0" />
+              <div className="flex items-center gap-2 truncate text-xs font-mono font-semibold">
+                <span className="text-cyan-400 font-bold uppercase tracking-wider">
+                  {isMovie ? 'Now Streaming' : `Playing S${activeSeason?.seasonNumber || 1}:E${currentPlayingEpisode.episodeNumber}`}
+                </span>
+                {!isMovie && currentPlayingEpisode.title && currentPlayingEpisode.title !== currentSeries.title && (
+                  <span className="text-slate-400 truncate">
+                    • {currentPlayingEpisode.title}
+                  </span>
+                )}
               </div>
-              <h2 className="text-sm sm:text-base font-extrabold text-white truncate mt-0.5">
-                {currentPlayingEpisode.title}
-              </h2>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
@@ -1615,7 +1633,7 @@ export const SeriesDetail: React.FC = () => {
                 }}
                 className={`p-2 rounded-lg border transition-all ${
                   isBookmarked
-                    ? 'bg-cyan-950/60 border-cyan-500 text-cyan-400'
+                    ? 'bg-cyan-950/60 border-cyan-500 text-cyan-400 shadow-[0_0_10px_rgba(0,243,255,0.4)]'
                     : 'bg-black/60 border-slate-800 text-slate-400 hover:text-white'
                 }`}
                 title="Bookmark Episode"
@@ -1631,8 +1649,76 @@ export const SeriesDetail: React.FC = () => {
       {/* BOTTOM HALF: Series Details, Season Tabs, Compact Series-Wise Episode Grid */}
       {/* ========================================================================= */}
       <div className="px-4 py-4 space-y-5">
+        {/* Prominent Movie / Series Name & Meta Header (Above Description - Single Appearance) */}
+        <div className="space-y-2.5 border-b border-slate-800/80 pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Movie or Web Series Neon Badge */}
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-wider font-mono border ${
+              isMovie
+                ? 'bg-gradient-to-r from-rose-500/20 to-pink-500/10 text-rose-300 border-rose-500/40 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
+                : 'bg-gradient-to-r from-cyan-500/20 to-blue-500/10 text-cyan-300 border-cyan-500/40 shadow-[0_0_12px_rgba(0,243,255,0.3)]'
+            }`}>
+              {isMovie ? (
+                <>
+                  <Film className="w-3.5 h-3.5 text-rose-400 stroke-[2.5]" />
+                  <span>Cinema Movie</span>
+                </>
+              ) : (
+                <>
+                  <Tv className="w-3.5 h-3.5 text-cyan-400 stroke-[2.5]" />
+                  <span>Web Series</span>
+                </>
+              )}
+            </span>
+
+            {/* Category / Genre Badge */}
+            {currentSeries.category && (
+              <span className="px-2.5 py-1 rounded-md bg-slate-900/90 text-slate-300 text-[11px] font-semibold border border-slate-700/60">
+                {currentSeries.category}
+              </span>
+            )}
+
+            {/* Release Year */}
+            {currentSeries.year && (
+              <span className="px-2 py-1 rounded-md bg-slate-900/90 text-slate-300 text-[11px] font-mono border border-slate-800">
+                {currentSeries.year}
+              </span>
+            )}
+
+            {/* Rating */}
+            {currentSeries.rating && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 text-amber-300 text-[11px] font-mono font-bold border border-amber-500/30">
+                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                <span>{currentSeries.rating}</span>
+              </span>
+            )}
+
+            {/* 4K Ultra HD Badge */}
+            <span className="px-2 py-1 rounded-md bg-cyan-950/40 text-cyan-400 text-[10px] font-mono font-extrabold border border-cyan-500/30">
+              4K ULTRA HD
+            </span>
+
+            {!isMovie && (
+              <span className="text-xs text-slate-400 font-mono ml-auto">
+                {currentSeries.seasons.length} {currentSeries.seasons.length === 1 ? 'Season' : 'Seasons'} • {totalEpisodesCount} Ep
+              </span>
+            )}
+          </div>
+
+          {/* Main Title of the Movie / Series - EXACTLY ONCE */}
+          <div className="pt-0.5">
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight drop-shadow">
+              {currentSeries.title}
+            </h1>
+          </div>
+        </div>
+
         {/* Series Overview */}
         <div className="space-y-2">
+          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3 text-cyan-400" />
+            <span>Story & Overview</span>
+          </h2>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
             {currentSeries.description}
           </p>
